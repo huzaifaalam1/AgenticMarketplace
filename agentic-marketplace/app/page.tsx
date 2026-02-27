@@ -1,29 +1,37 @@
 export default function Home() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-10 rounded-xl shadow-md text-center">
-        <h1 className="text-3xl font-bold mb-4">
+    <main className="min-h-screen bg-yellow-50 flex items-center justify-center px-6">
+      <div className="bg-amber-50 p-12 rounded-3xl shadow-xl max-w-xl w-full text-center">
+
+        <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
           Agentic Marketplace
         </h1>
-        <p className="text-gray-600 mb-6">
-          AI-powered escrow & trade risk infrastructure
+
+        <p className="text-gray-600 mb-10">
+          AI-powered escrow, contract arbitration, and trust infrastructure
+          for secure cross-border trade.
         </p>
 
-        <div className="space-x-4">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+
           <a
             href="/signup"
-            className="px-6 py-2 bg-black text-white rounded-lg"
+            className="px-8 py-3 bg-amber-400 text-gray-900 font-medium rounded-xl
+                       hover:bg-amber-500 transition duration-200"
           >
-            Sign Up
+            Get Started
           </a>
 
           <a
             href="/login"
-            className="px-6 py-2 border border-black rounded-lg"
+            className="px-8 py-3 border border-amber-400 text-gray-800 font-medium
+                       rounded-xl hover:bg-amber-100 transition duration-200"
           >
             Login
           </a>
+
         </div>
+
       </div>
     </main>
   )
