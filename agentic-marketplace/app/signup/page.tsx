@@ -18,14 +18,15 @@ export default function Signup() {
       password,
     })
 
+    if (error) {
+      setLoading(false)
+      alert(error.message)
+      return
+    }
+
     setLoading(false)
 
-    if (error) {
-      alert(error.message)
-    } else {
-      alert('Check your email to verify your account.')
-      router.push('/login')
-    }
+    router.push('/onboarding')
   }
 
   return (

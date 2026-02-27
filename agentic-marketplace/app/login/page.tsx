@@ -18,10 +18,29 @@ export default function Login() {
       password,
     })
 
+    if (error) {
+      setLoading(false)
+      alert(error.message)
+      return
+    }
+
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (!session) {
+      setLoading(false)
+      return
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', session.user.id)
+      .maybeSingle()
+
     setLoading(false)
 
-    if (error) {
-      alert(error.message)
+    if (profile) {
+      router.push('/dashboard')
     } else {
       router.push('/onboarding')
     }
