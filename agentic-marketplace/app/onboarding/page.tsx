@@ -98,27 +98,12 @@ export default function Onboarding() {
     // ==========================
     if (accountType === 'organization') {
 
-      // 1️⃣ Create Organization
-      const { data: org, error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          name: organizationName,
-        })
-        .select()
-        .single()
-
-      if (orgError || !org) {
-        setLoading(false)
-        alert(orgError?.message || 'Failed to create organization')
-        return
-      }
-
-      // 2️⃣ Create Profile (User Identity)
+      // 1️⃣ Create Profile (User Identity)
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
           id: userId,
-          account_type: 'organization_member',
+          account_type: 'organization',
           full_name: null,
           profile_completed: false,
         })
@@ -126,6 +111,22 @@ export default function Onboarding() {
       if (profileError) {
         setLoading(false)
         alert(profileError.message)
+        return
+      }
+
+      // 2️⃣ Create Organization
+      const { data: org, error: orgError } = await supabase
+        .from('organizations')
+        .insert({
+          name: organizationName,
+          owner_id: userId,
+        })
+        .select()
+        .single()
+
+      if (orgError || !org) {
+        setLoading(false)
+        alert(orgError?.message || 'Failed to create organization')
         return
       }
 

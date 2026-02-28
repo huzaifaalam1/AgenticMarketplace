@@ -16,6 +16,7 @@ export default function SetupOrganization() {
   const [country, setCountry] = useState('')
   const [city, setCity] = useState('')
   const [website, setWebsite] = useState('')
+  const [marketplaceRole, setMarketplaceRole] = useState<'buyer' | 'supplier' | 'both'>('buyer')
 
   useEffect(() => {
     const loadOrganization = async () => {
@@ -55,6 +56,7 @@ export default function SetupOrganization() {
       setCountry(org.country || '')
       setCity(org.city || '')
       setWebsite(org.website || '')
+      setMarketplaceRole(org.marketplace_role || 'buyer')
     }
 
     loadOrganization()
@@ -76,6 +78,7 @@ export default function SetupOrganization() {
       .update({
         name,
         industry,
+        marketplace_role: marketplaceRole,
         business_description: businessDescription,
         country,
         city,
@@ -126,6 +129,18 @@ export default function SetupOrganization() {
           value={industry}
           onChange={(e) => setIndustry(e.target.value)}
         />
+
+        <select
+          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
+          value={marketplaceRole}
+          onChange={(e) =>
+            setMarketplaceRole(e.target.value as any)
+          }
+        >
+          <option value="buyer">Buyer</option>
+          <option value="supplier">Supplier</option>
+          <option value="both">Both</option>
+        </select>
 
         <textarea
           placeholder="Business Description"

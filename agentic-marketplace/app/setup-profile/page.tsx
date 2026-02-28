@@ -18,6 +18,7 @@ export default function SetupProfile() {
   const [city, setCity] = useState('')
   const [phone, setPhone] = useState('')
   const [website, setWebsite] = useState('')
+  const [marketplaceRole, setMarketplaceRole] = useState<'buyer' | 'supplier' | 'both'>('buyer')
 
   const router = useRouter()
 
@@ -49,6 +50,7 @@ export default function SetupProfile() {
       setAccountType(profile.account_type)
       setFullName(profile.full_name || '')
       setOrganizationName(profile.organization_name || '')
+      setMarketplaceRole(profile.marketplace_role || 'buyer')
     }
 
     fetchProfile()
@@ -79,6 +81,7 @@ export default function SetupProfile() {
         job_title: accountType === 'individual' ? jobTitle : null,
         company_role: accountType === 'organization' ? companyRole : null,
         industry,
+        marketplace_role: marketplaceRole,
         business_description: businessDescription,
         country,
         city,
@@ -154,6 +157,18 @@ export default function SetupProfile() {
           value={industry}
           onChange={(e) => setIndustry(e.target.value)}
         />
+
+        <select
+          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
+          value={marketplaceRole}
+          onChange={(e) =>
+            setMarketplaceRole(e.target.value as any)
+          }
+          >
+          <option value="buyer">Buyer</option>
+          <option value="supplier">Supplier</option>
+          <option value="both">Both</option>
+        </select>
 
         <textarea
           placeholder="Business Description"
