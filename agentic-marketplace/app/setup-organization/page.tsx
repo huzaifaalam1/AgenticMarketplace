@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import CountryCityDropdown from '@/components/CountryCityDropdown'
+import IndustriesDropdown from '@/components/IndustriesDropdown'
+import WebsiteInput from '@/components/WebsiteInput'
+import BioTextarea from '@/components/BioTextarea'
 
 export default function SetupOrganization() {
   const router = useRouter()
@@ -122,12 +126,10 @@ export default function SetupOrganization() {
           onChange={(e) => setName(e.target.value)}
         />
 
-        <input
-          type="text"
-          placeholder="Industry"
-          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-          value={industry}
-          onChange={(e) => setIndustry(e.target.value)}
+        <IndustriesDropdown
+          selectedIndustry={industry}
+          onIndustryChange={setIndustry}
+          className="mb-4"
         />
 
         <select
@@ -142,35 +144,25 @@ export default function SetupOrganization() {
           <option value="both">Both</option>
         </select>
 
-        <textarea
-          placeholder="Business Description"
-          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
+        <BioTextarea
           value={businessDescription}
-          onChange={(e) => setBusinessDescription(e.target.value)}
+          onChange={setBusinessDescription}
+          maxWords={150}
+          maxCharacters={1000}
+          className="mb-4"
         />
 
-        <input
-          type="text"
-          placeholder="Country"
-          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
+        <CountryCityDropdown
+          selectedCountry={country}
+          selectedCity={city}
+          onCountryChange={setCountry}
+          onCityChange={setCity}
         />
 
-        <input
-          type="text"
-          placeholder="City"
-          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-        />
-
-        <input
-          type="text"
-          placeholder="Website (optional)"
-          className="w-full p-3 rounded-xl border border-gray-300 mb-6 focus:ring-2 focus:ring-amber-400"
+        <WebsiteInput
           value={website}
-          onChange={(e) => setWebsite(e.target.value)}
+          onChange={setWebsite}
+          className="mb-6"
         />
 
         <button
