@@ -280,7 +280,6 @@ const industries = [
   'Workers Compensation',
   'Disability Insurance',
   'Long-term Care Insurance',
-  'Travel Insurance',
   'Pet Insurance',
   'Wedding Insurance',
   'Event Insurance',
