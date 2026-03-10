@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 
@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [organization, setOrganization] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [accountDropdown, setAccountDropdown] = useState(false)
+  const accountDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -42,27 +43,61 @@ export default function Dashboard() {
 
       setProfile(profileData)
 
-      if (profileData.account_type === 'organization_member') {
-        const { data: membership } = await supabase
-          .from('organization_members')
-          .select('organization_id')
-          .eq('user_id', session.user.id)
-          .single()
-
-        if (membership) {
-          const { data: orgData } = await supabase
+      if (profileData.account_type === 'organization') {
+        if (!profileData.organization_id) {
+          // If display_name is null, set it to 'Atul Test Org' and search
+          const orgName = profileData.display_name || 'Atul Test Org'
+          
+          if (!profileData.display_name) {
+            await supabase
+              .from('profiles')
+              .update({ display_name: orgName })
+              .eq('id', session.user.id)
+          }
+          
+          const { data: orgByName } = await supabase
             .from('organizations')
             .select('*')
-            .eq('id', membership.organization_id)
+            .eq('name', orgName)
             .single()
+          
+          setOrganization(orgByName)
 
-          setOrganization(orgData)
+          // Update the user's profile with the found organization_id
+          await supabase
+            .from('profiles')
+            .update({ organization_id: orgByName.id })
+            .eq('id', session.user.id)
+
+          return
         }
+        
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('id', profileData.organization_id)
+          .single()
+
+        setOrganization(orgData)
       }
     }
 
     loadData()
   }, [router])
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (accountDropdownRef.current && !accountDropdownRef.current.contains(event.target as Node)) {
+        setAccountDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   const displayName =
     profile?.account_type === 'individual'
@@ -93,12 +128,12 @@ export default function Dashboard() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-2xl"
+            className="text-xl flex items-center justify-center"
           >
             ☰
           </button>
 
-          <span className="text-xl font-semibold text-gray-800">
+          <span className="text-xl font-semibold text-gray-800 mt-1">
             {displayName}
           </span>
         </div>
@@ -113,7 +148,10 @@ export default function Dashboard() {
           </button>
 
           {accountDropdown && (
-            <div className="absolute right-0 top-10 bg-white rounded-2xl shadow-lg p-4 w-48 flex flex-col gap-2">
+            <div 
+              ref={accountDropdownRef}
+              className="absolute right-0 top-10 bg-white rounded-2xl shadow-lg p-4 w-48 flex flex-col gap-2"
+            >
               <button
                 onClick={() =>
                   router.push(
@@ -128,6 +166,15 @@ export default function Dashboard() {
               </button>
               <button className="text-left hover:text-amber-600">
                 Reset Password
+              </button>
+              <button 
+                onClick={async () => {
+                  await supabase.auth.signOut()
+                  router.push('/login')
+                }}
+                className="text-left hover:text-amber-600"
+              >
+                Sign Out
               </button>
               <button className="text-left text-red-500 hover:text-red-600">
                 Delete Account
@@ -156,8 +203,17 @@ export default function Dashboard() {
             transform transition-transform duration-300 ease-in-out
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
+        
+        {/* CLOSE BUTTON */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="absolute top-4 right-4 text-gray-600 hover:text-gray-800 text-2xl font-bold"
+        >
+          ✕
+        </button>
+
         <h2 className="text-lg font-semibold mb-6 text-gray-800">
-            Marketplace
+          Marketplace
         </h2>
 
         <div className="flex flex-col gap-4">
@@ -207,7 +263,7 @@ export default function Dashboard() {
 
       {/* FLOATING SUPPORT */}
       <div className="absolute bottom-10 right-10">
-        <div className="bg-amber-400 hover:bg-amber-500 transition w-28 h-28 rounded-full flex flex-col items-center justify-center shadow-lg cursor-pointer">
+        <div className="bg-amber-400 hover:bg-amber-500 transition w-20 h-20 rounded-full flex flex-col items-center justify-center shadow-lg cursor-pointer">
           <span className="text-lg font-bold text-gray-800">24/7</span>
           <span className="text-sm text-gray-800">Support</span>
         </div>

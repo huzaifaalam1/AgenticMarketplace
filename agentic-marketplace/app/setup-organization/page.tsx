@@ -96,13 +96,16 @@ export default function SetupOrganization() {
       return
     }
 
-    // 2️⃣ Mark profile completed
+    // 2️⃣ Mark profile completed and set organization_id
     const { data: { session } } = await supabase.auth.getSession()
 
     if (session) {
       await supabase
         .from('profiles')
-        .update({ profile_completed: true })
+        .update({ 
+          profile_completed: true,
+          organization_id: orgId 
+        })
         .eq('id', session.user.id)
     }
 
