@@ -217,11 +217,18 @@ export default function Dashboard() {
         </h2>
 
         <div className="flex flex-col gap-4">
-            <button className="text-left hover:text-amber-600">
-                Find Buyers
+            <button
+              onClick={() => router.push('/dashboard/find-buyers')}
+              className="text-left hover:text-amber-600"
+            >
+              Find Buyers
             </button>
-            <button className="text-left hover:text-amber-600">
-                Find Suppliers
+
+            <button
+              onClick={() => router.push('/dashboard/find-suppliers')}
+              className="text-left hover:text-amber-600"
+            >
+              Find Suppliers
             </button>
             <button className="text-left hover:text-amber-600">
                 Active Deals
