@@ -102,6 +102,23 @@ export default function SetupProfile() {
     if (error) {
       alert(error.message)
     } else {
+
+      // Create wallet if it doesn't exist
+      const { data: existingWallet } = await supabase
+        .from('wallets')
+        .select('id')
+        .eq('owner_id', session.user.id)
+        .maybeSingle()
+
+      if (!existingWallet) {
+        await supabase.from('wallets').insert({
+          owner_type: 'individual',
+          owner_id: session.user.id,
+          available_balance: 0,
+          escrow_balance: 0,
+          currency: 'USD',
+        })
+      }
       router.push('/dashboard')
     }
   }
