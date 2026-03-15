@@ -49,7 +49,7 @@ export default function Dashboard() {
 
       setProfile(profileData)
 
-      // WALLET
+      // ✅ WALLET (clean version)
       let ownerId = profileData.id
       let ownerType = 'individual'
 
@@ -63,11 +63,11 @@ export default function Dashboard() {
         .select('*')
         .eq('owner_id', ownerId)
         .eq('owner_type', ownerType)
-        .single()
+        .maybeSingle()
 
       setWallet(walletData)
 
-      // ORG
+      // ✅ ORG
       if (profileData.account_type === 'organization') {
         const { data: orgData } = await supabase
           .from('organizations')
@@ -144,26 +144,31 @@ export default function Dashboard() {
       wallet={wallet}
     >
 
-      {/* DASHBOARD CONTENT ONLY */}
       <div className="flex justify-center gap-12 mt-10">
 
         <div className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center">
-          <span>Trust Score</span>
-          <span className="text-3xl font-bold mt-2">
+          <span className="text-lg font-medium text-gray-700">
+            Trust Score
+          </span>
+          <span className="text-3xl font-bold text-gray-800 mt-2">
             ⭐ {trust}
           </span>
         </div>
 
         <div className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center">
-          <span>Deals Completed</span>
-          <span className="text-3xl font-bold mt-2">
+          <span className="text-lg font-medium text-gray-700">
+            Deals Completed
+          </span>
+          <span className="text-3xl font-bold text-gray-800 mt-2">
             {deals}
           </span>
         </div>
 
         <div className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center">
-          <span>Disputes</span>
-          <span className="text-3xl font-bold mt-2">
+          <span className="text-lg font-medium text-gray-700">
+            Disputes
+          </span>
+          <span className="text-3xl font-bold text-gray-800 mt-2">
             {disputes}
           </span>
         </div>

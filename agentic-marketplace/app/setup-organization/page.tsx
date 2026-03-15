@@ -116,9 +116,8 @@ export default function SetupOrganization() {
       .eq('owner_id', orgId)
       .maybeSingle()
 
-    // wallet creation with error handling
     if (!existingWallet) {
-      const { error: walletError } = await supabase
+      await supabase
         .from('wallets')
         .insert({
           owner_type: 'organization',
@@ -127,14 +126,7 @@ export default function SetupOrganization() {
           escrow_balance: 0,
           currency: 'USD'
         })
-
-      if (walletError) {
-        setLoading(false)
-        alert(walletError.message)
-        return
-      }
     }
-
     setLoading(false)
     router.push('/dashboard')
   }
