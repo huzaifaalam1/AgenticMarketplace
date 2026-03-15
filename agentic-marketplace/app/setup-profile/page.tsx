@@ -100,27 +100,38 @@ export default function SetupProfile() {
     setLoading(false)
 
     if (error) {
+      setLoading(false)
       alert(error.message)
-    } else {
+      return
+    }
 
-      // Create wallet if it doesn't exist
-      const { data: existingWallet } = await supabase
+    const { data: existingWallet } = await supabase
+      .from('wallets')
+      .select('id')
+      .eq('owner_id', session.user.id)
+      .eq('owner_type', 'individual')
+      .maybeSingle()
+
+    if (!existingWallet) {
+      const { error: walletError } = await supabase
         .from('wallets')
-        .select('id')
-        .eq('owner_id', session.user.id)
-        .maybeSingle()
-
-      if (!existingWallet) {
-        await supabase.from('wallets').insert({
+        .insert({
           owner_type: 'individual',
           owner_id: session.user.id,
           available_balance: 0,
           escrow_balance: 0,
           currency: 'USD',
         })
+
+      if (walletError) {
+        setLoading(false)
+        alert(walletError.message)
+        return
       }
-      router.push('/dashboard')
     }
+
+    setLoading(false)
+    router.push('/dashboard')
   }
 
   return (

@@ -12,6 +12,8 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [accountDropdown, setAccountDropdown] = useState(false)
   const [wallet, setWallet] = useState<any>(null)
+  const [showAddFunds, setShowAddFunds] = useState(false)
+  const [depositAmount, setDepositAmount] = useState('')
   const accountDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -26,7 +28,7 @@ export default function Dashboard() {
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
-        .single()
+        .maybeSingle()
 
       if (!profileData) {
         router.push('/onboarding')
@@ -43,6 +45,40 @@ export default function Dashboard() {
       }
 
       setProfile(profileData)
+
+      // LOAD WALLET
+      let ownerId = profileData.id
+      let ownerType = 'individual'
+
+      if (profileData.account_type === 'organization') {
+        ownerId = profileData.organization_id
+        ownerType = 'organization'
+      }
+
+      const { data: walletData } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .eq('owner_type', ownerType)
+        .maybeSingle()
+
+      if (!walletData) {
+        const { data: newWallet } = await supabase
+          .from('wallets')
+          .insert({
+            owner_type: ownerType,
+            owner_id: ownerId,
+            available_balance: 0,
+            escrow_balance: 0,
+            currency: 'USD'
+          })
+          .select()
+          .single()
+
+        setWallet(newWallet)
+      } else {
+        setWallet(walletData)
+      }
 
       if (profileData.account_type === 'organization') {
         if (!profileData.organization_id) {
@@ -82,18 +118,6 @@ export default function Dashboard() {
         setOrganization(orgData)
       }
 
-    const ownerId =
-      profileData.account_type === 'individual'
-        ? profileData.id
-        : profileData.organization_id
-
-    const { data: walletData } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('owner_id', ownerId)
-      .single()
-
-    setWallet(walletData)
     }
 
     loadData()
@@ -133,6 +157,45 @@ export default function Dashboard() {
       ? profile?.disputes_count
       : organization?.disputes_count
 
+  const handleAddFunds = async () => {
+    if (!wallet || !depositAmount) return
+
+    const amount = Number(depositAmount)
+
+    if (amount <= 0) {
+      alert('Enter a valid amount')
+      return
+    }
+
+    const newBalance = wallet.available_balance + amount
+
+    // Update wallet balance
+    await supabase
+      .from('wallets')
+      .update({
+        available_balance: newBalance
+      })
+      .eq('id', wallet.id)
+
+    // Create ledger record
+    await supabase
+      .from('wallet_transactions')
+      .insert({
+        wallet_id: wallet.id,
+        type: 'deposit',
+        amount: amount,
+        direction: 'credit',
+        description: 'Wallet deposit'
+      })
+
+    setWallet({
+      ...wallet,
+      available_balance: newBalance
+    })
+
+    setShowAddFunds(false)
+    setDepositAmount('')
+  }
   return (
     <div className="min-h-screen bg-yellow-50 relative">
 
@@ -246,6 +309,7 @@ export default function Dashboard() {
           </p>
 
           <button
+            onClick={() => setShowAddFunds(true)}
             className="mt-3 w-full bg-amber-400 hover:bg-amber-500 text-gray-900 py-2 rounded-lg text-sm font-medium"
           >
             Add Funds
@@ -320,6 +384,44 @@ export default function Dashboard() {
         </div>
       </div>
 
+    {/* ADD FUNDS MODAL */}
+    {showAddFunds && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+
+        <div className="bg-white rounded-2xl p-6 w-80">
+
+          <h2 className="text-xl font-semibold mb-4">
+            Add Funds
+          </h2>
+
+          <input
+            type="number"
+            min="1"
+            step="1"
+            placeholder="Amount"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            className="w-full border p-2 rounded mb-4"
+          />
+
+          <button
+            onClick={handleAddFunds}
+            className="bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded w-full"
+          >
+            Confirm Deposit
+          </button>
+
+          <button
+            onClick={() => setShowAddFunds(false)}
+            className="mt-2 text-sm text-gray-500 w-full"
+          >
+            Cancel
+          </button>
+
+        </div>
+
+      </div>
+    )}
     </div>
   )
 }
