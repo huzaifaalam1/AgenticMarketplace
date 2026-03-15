@@ -11,6 +11,9 @@ export default function Dashboard() {
   const [organization, setOrganization] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [accountDropdown, setAccountDropdown] = useState(false)
+  const [wallet, setWallet] = useState<any>(null)
+  const [showAddFunds, setShowAddFunds] = useState(false)
+  const [depositAmount, setDepositAmount] = useState('')
   const accountDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -25,7 +28,7 @@ export default function Dashboard() {
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
-        .single()
+        .maybeSingle()
 
       if (!profileData) {
         router.push('/onboarding')
@@ -43,24 +46,58 @@ export default function Dashboard() {
 
       setProfile(profileData)
 
+      // LOAD WALLET
+      let ownerId = profileData.id
+      let ownerType = 'individual'
+
+      if (profileData.account_type === 'organization') {
+        ownerId = profileData.organization_id
+        ownerType = 'organization'
+      }
+
+      const { data: walletData } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .eq('owner_type', ownerType)
+        .maybeSingle()
+
+      if (!walletData) {
+        const { data: newWallet } = await supabase
+          .from('wallets')
+          .insert({
+            owner_type: ownerType,
+            owner_id: ownerId,
+            available_balance: 0,
+            escrow_balance: 0,
+            currency: 'USD'
+          })
+          .select()
+          .single()
+
+        setWallet(newWallet)
+      } else {
+        setWallet(walletData)
+      }
+
       if (profileData.account_type === 'organization') {
         if (!profileData.organization_id) {
           // If display_name is null, set it to 'Atul Test Org' and search
           const orgName = profileData.display_name || 'Atul Test Org'
-          
+
           if (!profileData.display_name) {
             await supabase
               .from('profiles')
               .update({ display_name: orgName })
               .eq('id', session.user.id)
           }
-          
+
           const { data: orgByName } = await supabase
             .from('organizations')
             .select('*')
             .eq('name', orgName)
             .single()
-          
+
           setOrganization(orgByName)
 
           // Update the user's profile with the found organization_id
@@ -71,7 +108,7 @@ export default function Dashboard() {
 
           return
         }
-        
+
         const { data: orgData } = await supabase
           .from('organizations')
           .select('*')
@@ -80,6 +117,7 @@ export default function Dashboard() {
 
         setOrganization(orgData)
       }
+
     }
 
     loadData()
@@ -119,6 +157,45 @@ export default function Dashboard() {
       ? profile?.disputes_count
       : organization?.disputes_count
 
+  const handleAddFunds = async () => {
+    if (!wallet || !depositAmount) return
+
+    const amount = Number(depositAmount)
+
+    if (amount <= 0) {
+      alert('Enter a valid amount')
+      return
+    }
+
+    const newBalance = wallet.available_balance + amount
+
+    // Update wallet balance
+    await supabase
+      .from('wallets')
+      .update({
+        available_balance: newBalance
+      })
+      .eq('id', wallet.id)
+
+    // Create ledger record
+    await supabase
+      .from('wallet_transactions')
+      .insert({
+        wallet_id: wallet.id,
+        type: 'deposit',
+        amount: amount,
+        direction: 'credit',
+        description: 'Wallet deposit'
+      })
+
+    setWallet({
+      ...wallet,
+      available_balance: newBalance
+    })
+
+    setShowAddFunds(false)
+    setDepositAmount('')
+  }
   return (
     <div className="min-h-screen bg-yellow-50 relative">
 
@@ -148,7 +225,7 @@ export default function Dashboard() {
           </button>
 
           {accountDropdown && (
-            <div 
+            <div
               ref={accountDropdownRef}
               className="absolute right-0 top-10 bg-white rounded-2xl shadow-lg p-4 w-48 flex flex-col gap-2"
             >
@@ -167,7 +244,7 @@ export default function Dashboard() {
               <button className="text-left hover:text-amber-600">
                 Reset Password
               </button>
-              <button 
+              <button
                 onClick={async () => {
                   await supabase.auth.signOut()
                   router.push('/login')
@@ -203,7 +280,7 @@ export default function Dashboard() {
             transform transition-transform duration-300 ease-in-out
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
-        
+
         {/* CLOSE BUTTON */}
         <button
           onClick={() => setSidebarOpen(false)}
@@ -216,7 +293,37 @@ export default function Dashboard() {
           Marketplace
         </h2>
 
+        {/* WALLET CARD */}
+        <div className="bg-white rounded-2xl p-4 shadow-md mb-6">
+
+          <p className="text-sm text-gray-500">
+            Wallet
+          </p>
+
+          <p className="text-2xl font-semibold text-gray-800 mt-1">
+            ${wallet?.available_balance?.toFixed(2) || '0.00'}
+          </p>
+
+          <p className="text-xs text-gray-500">
+            Available Balance
+          </p>
+
+          <button
+            onClick={() => setShowAddFunds(true)}
+            className="mt-3 w-full bg-amber-400 hover:bg-amber-500 text-gray-900 py-2 rounded-lg text-sm font-medium"
+          >
+            Add Funds
+          </button>
+        </div>
+
         <div className="flex flex-col gap-4">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="text-left hover:text-amber-600 font-medium"
+            >
+              Home
+            </button>
+
             <button
               onClick={() => router.push('/dashboard/find-buyers')}
               className="text-left hover:text-amber-600"
@@ -230,6 +337,7 @@ export default function Dashboard() {
             >
               Find Suppliers
             </button>
+
             <button className="text-left hover:text-amber-600">
                 Active Deals
             </button>
@@ -276,6 +384,44 @@ export default function Dashboard() {
         </div>
       </div>
 
+    {/* ADD FUNDS MODAL */}
+    {showAddFunds && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+
+        <div className="bg-white rounded-2xl p-6 w-80">
+
+          <h2 className="text-xl font-semibold mb-4">
+            Add Funds
+          </h2>
+
+          <input
+            type="number"
+            min="1"
+            step="1"
+            placeholder="Amount"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            className="w-full border p-2 rounded mb-4"
+          />
+
+          <button
+            onClick={handleAddFunds}
+            className="bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded w-full"
+          >
+            Confirm Deposit
+          </button>
+
+          <button
+            onClick={() => setShowAddFunds(false)}
+            className="mt-2 text-sm text-gray-500 w-full"
+          >
+            Cancel
+          </button>
+
+        </div>
+
+      </div>
+    )}
     </div>
   )
 }
