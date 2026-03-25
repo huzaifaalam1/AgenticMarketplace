@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 
@@ -13,6 +13,8 @@ export default function FindSuppliers() {
   const [country, setCountry] = useState("")
   const [categories, setCategories] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
+  const [showFilters, setShowFilters] = useState(false)
+  const filterRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const loadSuppliers = async () => {
 
@@ -80,6 +82,21 @@ export default function FindSuppliers() {
     loadSuppliers()
   }, [search, category, country])
 
+  useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                filterRef.current &&
+                !filterRef.current.contains(event.target as Node)
+            ) {
+                setShowFilters(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [])
+
   return (
 
     <div className="min-h-screen bg-yellow-50 p-10">
@@ -94,56 +111,71 @@ export default function FindSuppliers() {
         Find Suppliers
       </h1>
 
-        <div className="flex gap-4 mb-8">
+      <div className="flex gap-4 mb-8 items-center">
 
         <input
-            type="text"
-            placeholder="Search products..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="border rounded-lg px-4 py-2 w-64"
+          type="text"
+          placeholder="Search products..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border rounded-lg px-4 py-2 w-64"
         />
 
-        <select
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        className="border rounded-lg px-4 py-2"
-        >
+        {/* FILTER BUTTON */}
+        <div className="relative" ref={filterRef}>
 
-        <option value="">All Categories</option>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="px-4 py-2 bg-amber-200 hover:bg-amber-300 rounded-lg"
+          >
+            ⚙ Filters
+          </button>
 
-        {categories.map((cat) => (
-            <option key={cat} value={cat}>
-            {cat}
-            </option>
-        ))}
+          {showFilters && (
+            <div className="absolute top-12 left-0 bg-white rounded-2xl shadow-lg p-4 w-64 z-50">
 
-        </select>
+              {/* CATEGORY */}
+              <div className="mb-3">
+                <label className="text-sm font-medium">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full mt-1 border rounded-lg px-2 py-1"
+                >
+                  <option value="">All</option>
+                  {categories.map((cat) => (
+                    <option key={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
 
-        <select
-        value={country}
-        onChange={(e) => setCountry(e.target.value)}
-        className="border rounded-lg px-4 py-2"
-        >
+              {/* COUNTRY */}
+              <div>
+                <label className="text-sm font-medium">Country</label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="w-full mt-1 border rounded-lg px-2 py-1"
+                >
+                  <option value="">All</option>
+                  {countries.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
 
-        <option value="">All Countries</option>
-
-        {countries.map((c) => (
-            <option key={c} value={c}>
-            {c}
-            </option>
-        ))}
-
-        </select>
-
+            </div>
+          )}
         </div>
+      </div>
       <div className="grid grid-cols-3 gap-6">
 
         {suppliers.map((supplier) => (
 
           <div
             key={supplier.id}
-            className="bg-amber-100 rounded-3xl shadow-md p-6 flex flex-col gap-3"
+            className="bg-amber-100 rounded-3xl shadow-md p-6 flex flex-col gap-3
+                        transition transform hover:scale-[1.02]"
           >
 
             <h2 className="text-xl font-semibold">
@@ -159,7 +191,11 @@ export default function FindSuppliers() {
             </div>
 
             <div className="text-sm">
-              Location: {supplier.organizations?.city}, {supplier.country}
+              Location: {
+                supplier.organizations?.city
+                  ? `${supplier.organizations.city}, ${supplier.country}`
+                  : supplier.country
+              }
             </div>
 
             <div className="text-sm">
