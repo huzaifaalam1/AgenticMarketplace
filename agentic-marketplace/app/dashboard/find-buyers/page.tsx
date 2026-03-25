@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import DashboardLayout from '@/components/DashboardLayout'
 
 export default function FindBuyers() {
     const router = useRouter()
@@ -14,7 +15,8 @@ export default function FindBuyers() {
     const [categories, setCategories] = useState<string[]>([])
     const [countries, setCountries] = useState<string[]>([])
     const [showFilters, setShowFilters] = useState(false)
-
+    const [profile, setProfile] = useState<any>(null)
+    const [organization, setOrganization] = useState<any>(null)
     const filterRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
 
@@ -101,14 +103,7 @@ export default function FindBuyers() {
     }, [])
     return (
 
-        <div className="min-h-screen bg-yellow-50 p-10">
-
-            <button
-            onClick={() => router.push('/dashboard')}
-            className="mb-6 px-4 py-2 bg-amber-300 hover:bg-amber-400 rounded-lg"
-            >
-            ← Back to Dashboard
-            </button>
+        <DashboardLayout profile={profile} organization={organization}>
 
         <h1 className="text-3xl font-bold mb-10">
             Find Buyers
@@ -224,6 +219,6 @@ export default function FindBuyers() {
 
         </div>
 
-    </div>
+    </DashboardLayout>
     )
 }
