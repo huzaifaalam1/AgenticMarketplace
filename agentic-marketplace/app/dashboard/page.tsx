@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
@@ -10,22 +10,13 @@ export default function Dashboard() {
 
   const [profile, setProfile] = useState<any>(null)
   const [organization, setOrganization] = useState<any>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [accountDropdown, setAccountDropdown] = useState(false)
   const [wallet, setWallet] = useState<any>(null)
-  const [showAddFunds, setShowAddFunds] = useState(false)
-  const [depositAmount, setDepositAmount] = useState('')
-  const accountDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const loadData = async () => {
-
       const { data: { session } } = await supabase.auth.getSession()
 
-      if (!session) {
-        router.push('/login')
-        return
-      }
+      if (!session) return router.push('/login')
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -33,30 +24,24 @@ export default function Dashboard() {
         .eq('id', session.user.id)
         .maybeSingle()
 
-      if (!profileData) {
-        router.push('/onboarding')
-        return
-      }
+      if (!profileData) return router.push('/onboarding')
 
       if (!profileData.profile_completed) {
-        router.push(
+        return router.push(
           profileData.account_type === 'individual'
             ? '/setup-profile'
             : '/setup-organization'
         )
-        return
       }
 
       setProfile(profileData)
 
-      // ✅ WALLET (clean version)
-      let ownerId = profileData.id
-      let ownerType = 'individual'
+      const ownerId =
+        profileData.account_type === 'organization'
+          ? profileData.organization_id
+          : profileData.id
 
-      if (profileData.account_type === 'organization') {
-        ownerId = profileData.organization_id
-        ownerType = 'organization'
-      }
+      const ownerType = profileData.account_type
 
       const { data: walletData } = await supabase
         .from('wallets')
@@ -67,7 +52,6 @@ export default function Dashboard() {
 
       setWallet(walletData)
 
-      // ✅ ORG
       if (profileData.account_type === 'organization') {
         const { data: orgData } = await supabase
           .from('organizations')
@@ -77,66 +61,49 @@ export default function Dashboard() {
 
         setOrganization(orgData)
       }
-
     }
 
     loadData()
   }, [router])
 
-  const trust =
-    profile?.account_type === 'individual'
-      ? profile?.trust_score
-      : organization?.trust_score
+  const trust = profile?.account_type === 'individual'
+    ? profile?.trust_score
+    : organization?.trust_score
 
-  const deals =
-    profile?.account_type === 'individual'
-      ? profile?.deals_completed
-      : organization?.deals_completed
+  const deals = profile?.account_type === 'individual'
+    ? profile?.deals_completed
+    : organization?.deals_completed
 
-  const disputes =
-    profile?.account_type === 'individual'
-      ? profile?.disputes_count
-      : organization?.disputes_count
+  const disputes = profile?.account_type === 'individual'
+    ? profile?.disputes_count
+    : organization?.disputes_count
 
-  const handleAddFunds = async () => {
-    if (!wallet || !depositAmount) return
-
-    const amount = Number(depositAmount)
-
-    if (amount <= 0) {
-      alert('Enter a valid amount')
-      return
-    }
+  const handleAddFunds = async (amount: number) => {
+    if (!wallet || amount <= 0) return
 
     const newBalance = wallet.available_balance + amount
 
-    // Update wallet balance
     await supabase
       .from('wallets')
-      .update({
-        available_balance: newBalance
-      })
+      .update({ available_balance: newBalance })
       .eq('id', wallet.id)
 
-    // Create ledger record
     await supabase
       .from('wallet_transactions')
       .insert({
         wallet_id: wallet.id,
         type: 'deposit',
-        amount: amount,
+        amount,
         direction: 'credit',
         description: 'Wallet deposit'
       })
 
-    setWallet({
-      ...wallet,
+    setWallet((prev: any) => ({
+      ...prev,
       available_balance: newBalance
-    })
-
-    setShowAddFunds(false)
-    setDepositAmount('')
+    }))
   }
+
   return (
     <DashboardLayout
       profile={profile}
@@ -144,38 +111,22 @@ export default function Dashboard() {
       wallet={wallet}
       onAddFunds={handleAddFunds}
     >
-
       <div className="flex justify-center gap-12 mt-10">
-
-        <div className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center">
-          <span className="text-lg font-medium text-gray-700">
-            Trust Score
-          </span>
-          <span className="text-3xl font-bold text-gray-800 mt-2">
-            ⭐ {trust}
-          </span>
-        </div>
-
-        <div className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center">
-          <span className="text-lg font-medium text-gray-700">
-            Deals Completed
-          </span>
-          <span className="text-3xl font-bold text-gray-800 mt-2">
-            {deals}
-          </span>
-        </div>
-
-        <div className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center">
-          <span className="text-lg font-medium text-gray-700">
-            Disputes
-          </span>
-          <span className="text-3xl font-bold text-gray-800 mt-2">
-            {disputes}
-          </span>
-        </div>
-
+        {[
+          { label: 'Trust Score', value: `⭐ ${trust}` },
+          { label: 'Deals Completed', value: deals },
+          { label: 'Disputes', value: disputes }
+        ].map((item, i) => (
+          <div key={i} className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center">
+            <span className="text-lg font-medium text-gray-700">
+              {item.label}
+            </span>
+            <span className="text-3xl font-bold text-gray-800 mt-2">
+              {item.value}
+            </span>
+          </div>
+        ))}
       </div>
-
     </DashboardLayout>
   )
 }
