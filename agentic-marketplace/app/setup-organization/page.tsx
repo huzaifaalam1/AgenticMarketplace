@@ -102,13 +102,31 @@ export default function SetupOrganization() {
     if (session) {
       await supabase
         .from('profiles')
-        .update({ 
+        .update({
           profile_completed: true,
-          organization_id: orgId 
+          organization_id: orgId
         })
         .eq('id', session.user.id)
     }
 
+    // 3️⃣ Create wallet if organization doesn't have one
+    const { data: existingWallet } = await supabase
+      .from('wallets')
+      .select('id')
+      .eq('owner_id', orgId)
+      .maybeSingle()
+
+    if (!existingWallet) {
+      await supabase
+        .from('wallets')
+        .insert({
+          owner_type: 'organization',
+          owner_id: orgId,
+          available_balance: 0,
+          escrow_balance: 0,
+          currency: 'USD'
+        })
+    }
     setLoading(false)
     router.push('/dashboard')
   }

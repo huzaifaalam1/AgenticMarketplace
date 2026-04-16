@@ -8,7 +8,8 @@ export default function DashboardLayout({
   children,
   profile,
   organization,
-  wallet
+  wallet,
+  onAddFunds
 }: any) {
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -19,27 +20,22 @@ export default function DashboardLayout({
       : organization?.name
 
   return (
-    <div className="min-h-screen bg-yellow-50 relative">
+    <div className="min-h-screen bg-yellow-50">
 
-      {/* HEADER */}
       <Header
         displayName={displayName}
         accountType={profile?.account_type}
-        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+        onMenuClick={() => setSidebarOpen(prev => !prev)}
       />
 
-      {/* SIDEBAR */}
       <Sidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         wallet={wallet}
+        onAddFunds={onAddFunds}
       />
 
-      {/* PAGE CONTENT */}
-      <div className="p-8">
-        {children}
-      </div>
-
+      <div className="p-8">{children}</div>
     </div>
   )
 }
