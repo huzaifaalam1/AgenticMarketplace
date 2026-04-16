@@ -142,6 +142,7 @@ export default function Dashboard() {
       profile={profile}
       organization={organization}
       wallet={wallet}
+      onAddFunds={handleAddFunds}
     >
 
       <div className="flex justify-center gap-12 mt-10">

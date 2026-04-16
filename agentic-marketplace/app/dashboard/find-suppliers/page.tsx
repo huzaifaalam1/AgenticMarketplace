@@ -17,6 +17,7 @@ export default function FindSuppliers() {
   const [showFilters, setShowFilters] = useState(false)
   const [profile, setProfile] = useState<any>(null)
   const [organization, setOrganization] = useState<any>(null)
+  const [wallet, setWallet] = useState<any>(null)
   const filterRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const loadSuppliers = async () => {
@@ -101,7 +102,7 @@ export default function FindSuppliers() {
     }, [])
 
     return (
-        <DashboardLayout profile={profile} organization={organization}>
+        <DashboardLayout profile={profile} organization={organization} wallet={wallet}>
         <h1 className="text-3xl font-bold mb-10">
           Find Suppliers
         </h1>

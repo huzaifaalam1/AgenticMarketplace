@@ -1,9 +1,11 @@
 'use client'
-
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet }: any) {
+export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFunds }: any) {
   const router = useRouter()
+  const [showAddFunds, setShowAddFunds] = useState(false)
+  const [amount, setAmount] = useState('')
 
   return (
     <>
@@ -34,6 +36,34 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet }: any) {
           Marketplace
         </h2>
 
+        {/* WALLET CARD */}
+        {wallet && (
+        <div className="bg-white rounded-2xl p-4 shadow-md mb-6">
+
+            <p className="text-sm text-gray-500">
+            Wallet
+            </p>
+
+            <p className="text-2xl font-semibold text-gray-800 mt-1">
+            ${wallet.available_balance?.toFixed(2) || '0.00'}
+            </p>
+
+            <p className="text-xs text-gray-500">
+            Available Balance
+            </p>
+
+            <button
+                onClick={() => {
+                    const amount = Number(prompt("Enter amount"))
+                        if (amount > 0) onAddFunds(amount)
+                    }}
+                className="mt-3 w-full bg-amber-400 hover:bg-amber-500 text-gray-900 py-2 rounded-lg text-sm font-medium"
+            >
+            Add Funds
+            </button>
+
+        </div>
+        )}
         <div className="flex flex-col gap-4">
 
           <button

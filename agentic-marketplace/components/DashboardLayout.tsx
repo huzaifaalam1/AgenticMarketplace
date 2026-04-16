@@ -8,7 +8,8 @@ export default function DashboardLayout({
   children,
   profile,
   organization,
-  wallet
+  wallet,
+  onAddFunds
 }: any) {
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -33,6 +34,7 @@ export default function DashboardLayout({
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         wallet={wallet}
+        onAddFunds={onAddFunds}
       />
 
       {/* PAGE CONTENT */}
