@@ -115,6 +115,17 @@ export default function DashboardLayout({ children }: any) {
         onAddFunds={handleAddFunds}
       />
 
+      {/* WELCOME */}
+      <div className="flex justify-center mt-8">
+        <h2 className="text-lg font-medium text-gray-700 flex items-center gap-2">
+          Welcome back, {profile.full_name}
+
+          <span className="inline-block origin-bottom-right wave cursor-pointer">
+            👋
+          </span>
+        </h2>
+      </div>
+
       {/* DASHBOARD CARDS (ONLY ON /dashboard) */}
       {pathname === '/dashboard' && profile && (
         <div className="flex justify-center gap-12 mt-10">
