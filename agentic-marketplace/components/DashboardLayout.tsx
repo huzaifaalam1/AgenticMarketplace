@@ -24,6 +24,7 @@ export default function DashboardLayout({ children }: any) {
         return
       }
 
+      // 🔹 GET PROFILE
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -39,21 +40,35 @@ export default function DashboardLayout({ children }: any) {
 
       let ownerId = profileData.id
       let ownerType = 'individual'
+      let orgData = null
 
+      // GET ORG VIA organization_members
       if (profileData.account_type === 'organization') {
-        ownerId = profileData.organization_id
-        ownerType = 'organization'
+        const { data: membership, error: membershipError } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', profileData.id)
+          .maybeSingle()
 
-        const { data: orgData } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('id', profileData.organization_id)
-          .single()
+        if (membership?.organization_id) {
+          const { data: org } = await supabase
+            .from('organizations')
+            .select('*')
+            .eq('id', membership.organization_id)
+            .single()
 
-        setOrganization(orgData)
+          orgData = org
+          setOrganization(org)
+
+          ownerId = membership.organization_id
+          ownerType = 'organization'
+        } else {
+          console.log('❌ NO MEMBERSHIP FOUND FOR USER')
+        }
       }
 
-      const { data: walletData } = await supabase
+      // WALLET (works for both now)
+      const { data: walletData, error: walletError } = await supabase
         .from('wallets')
         .select('*')
         .eq('owner_id', ownerId)
@@ -92,6 +107,7 @@ export default function DashboardLayout({ children }: any) {
     }))
   }
 
+  // SAFE DISPLAY NAME
   const displayName =
     profile?.account_type === 'individual'
       ? profile?.full_name
@@ -116,17 +132,22 @@ export default function DashboardLayout({ children }: any) {
       />
 
       {/* WELCOME */}
-      <div className="flex justify-center mt-8">
-        <h2 className="text-lg font-medium text-gray-700 flex items-center gap-2">
-          Welcome back, {profile.full_name}
+      {profile && (
+        <div className="flex justify-center mt-8">
+          <h2 className="text-lg font-medium text-gray-700 flex items-center gap-2">
+            Welcome back,{' '}
+            {profile.account_type === 'individual'
+              ? profile.full_name
+              : organization?.name || 'Organization'}
 
-          <span className="inline-block origin-bottom-right wave cursor-pointer">
-            👋
-          </span>
-        </h2>
-      </div>
+            <span className="inline-block origin-bottom-right wave cursor-pointer">
+              👋
+            </span>
+          </h2>
+        </div>
+      )}
 
-      {/* DASHBOARD CARDS (ONLY ON /dashboard) */}
+      {/* DASHBOARD CARDS */}
       {pathname === '/dashboard' && profile && (
         <div className="flex justify-center gap-12 mt-10">
           {[
@@ -135,7 +156,7 @@ export default function DashboardLayout({ children }: any) {
               value: `⭐ ${
                 profile.account_type === 'individual'
                   ? profile.trust_score
-                  : organization?.trust_score
+                  : organization?.trust_score ?? 0
               }`
             },
             {
@@ -143,14 +164,14 @@ export default function DashboardLayout({ children }: any) {
               value:
                 profile.account_type === 'individual'
                   ? profile.deals_completed
-                  : organization?.deals_completed
+                  : organization?.deals_completed ?? 0
             },
             {
               label: 'Disputes',
               value:
                 profile.account_type === 'individual'
                   ? profile.disputes_count
-                  : organization?.disputes_count
+                  : organization?.disputes_count ?? 0
             }
           ].map((item, i) => (
             <div
