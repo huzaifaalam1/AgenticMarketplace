@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import DashboardLayout from '@/components/DashboardLayout'
 import CountryCityDropdown from '@/components/CountryCityDropdown'
 import IndustriesDropdown from '@/components/IndustriesDropdown'
 import WebsiteInput from '@/components/WebsiteInput'
@@ -13,6 +14,7 @@ export default function SetupOrganization() {
 
   const [loading, setLoading] = useState(false)
   const [orgId, setOrgId] = useState<string | null>(null)
+  const [isOnboarding, setIsOnboarding] = useState(true)
 
   const [name, setName] = useState('')
   const [industry, setIndustry] = useState('')
@@ -25,27 +27,18 @@ export default function SetupOrganization() {
   useEffect(() => {
     const loadOrganization = async () => {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return router.push('/login')
 
-      if (!session) {
-        router.push('/login')
-        return
-      }
-
-      // 1️⃣ Get user's organization
       const { data: membership } = await supabase
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', session.user.id)
-        .single()
+        .maybeSingle()
 
-      if (!membership) {
-        router.push('/onboarding')
-        return
-      }
+      if (!membership?.organization_id) return router.push('/onboarding')
 
       setOrgId(membership.organization_id)
 
-      // 2️⃣ Load organization data
       const { data: org } = await supabase
         .from('organizations')
         .select('*')
@@ -53,6 +46,8 @@ export default function SetupOrganization() {
         .single()
 
       if (!org) return
+
+      if (org.created_at) setIsOnboarding(false)
 
       setName(org.name || '')
       setIndustry(org.industry || '')
@@ -68,16 +63,9 @@ export default function SetupOrganization() {
 
   const handleSave = async () => {
     if (!orgId) return
-
-    if (!industry || !businessDescription || !country) {
-      alert('Please complete required fields')
-      return
-    }
-
     setLoading(true)
 
-    // 1️⃣ Update organization table
-    const { error: orgError } = await supabase
+    const { error } = await supabase
       .from('organizations')
       .update({
         name,
@@ -90,88 +78,41 @@ export default function SetupOrganization() {
       })
       .eq('id', orgId)
 
-    if (orgError) {
-      setLoading(false)
-      alert(orgError.message)
-      return
-    }
-
-    // 2️⃣ Mark profile completed and set organization_id
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (session) {
-      await supabase
-        .from('profiles')
-        .update({
-          profile_completed: true,
-          organization_id: orgId
-        })
-        .eq('id', session.user.id)
-    }
-
-    // 3️⃣ Create wallet if organization doesn't have one
-    const { data: existingWallet } = await supabase
-      .from('wallets')
-      .select('id')
-      .eq('owner_id', orgId)
-      .maybeSingle()
-
-    if (!existingWallet) {
-      await supabase
-        .from('wallets')
-        .insert({
-          owner_type: 'organization',
-          owner_id: orgId,
-          available_balance: 0,
-          escrow_balance: 0,
-          currency: 'USD'
-        })
-    }
     setLoading(false)
-    router.push('/dashboard')
+
+    if (error) alert(error.message)
+    else router.push('/dashboard')
   }
 
-  return (
-    <div className="min-h-screen bg-yellow-50 flex items-center justify-center px-6">
-      <div className="bg-amber-50 p-10 rounded-3xl shadow-xl w-full max-w-xl">
+  const content = (
+    <div className="max-w-xl mx-auto">
 
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">
-          Complete Organization Profile
-        </h1>
-
-        <input
-          type="text"
-          placeholder="Organization Name"
-          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        <IndustriesDropdown
-          selectedIndustry={industry}
-          onIndustryChange={setIndustry}
-          className="mb-4"
-        />
-
-        <select
-          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-          value={marketplaceRole}
-          onChange={(e) =>
-            setMarketplaceRole(e.target.value as any)
-          }
+      {!isOnboarding && (
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="mb-4 text-sm text-gray-600 hover:text-amber-600"
         >
+          ← Back to Dashboard
+        </button>
+      )}
+
+      <div className="bg-amber-50 p-10 rounded-3xl shadow-xl space-y-5">
+
+        <h2 className="text-xl font-semibold text-gray-800">
+          {isOnboarding ? 'Setup Organization' : 'Edit Organization'}
+        </h2>
+
+        <input className="input" placeholder="Organization Name" value={name} onChange={(e) => setName(e.target.value)} />
+
+        <IndustriesDropdown selectedIndustry={industry} onIndustryChange={setIndustry} />
+
+        <select className="input" value={marketplaceRole} onChange={(e) => setMarketplaceRole(e.target.value as any)}>
           <option value="buyer">Buyer</option>
           <option value="supplier">Supplier</option>
           <option value="both">Both</option>
         </select>
 
-        <BioTextarea
-          value={businessDescription}
-          onChange={setBusinessDescription}
-          maxWords={150}
-          maxCharacters={1000}
-          className="mb-4"
-        />
+        <BioTextarea value={businessDescription} onChange={setBusinessDescription} />
 
         <CountryCityDropdown
           selectedCountry={country}
@@ -180,21 +121,19 @@ export default function SetupOrganization() {
           onCityChange={setCity}
         />
 
-        <WebsiteInput
-          value={website}
-          onChange={setWebsite}
-          className="mb-6"
-        />
+        <WebsiteInput value={website} onChange={setWebsite} />
 
         <button
           onClick={handleSave}
           disabled={loading}
-          className="w-full py-3 rounded-xl bg-amber-400 text-gray-900 font-medium hover:bg-amber-500 transition"
+          className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-500"
         >
-          {loading ? 'Saving...' : 'Finish Setup'}
+          {loading ? 'Saving...' : 'Save Changes'}
         </button>
 
       </div>
     </div>
   )
+
+  return isOnboarding ? content : <DashboardLayout>{content}</DashboardLayout>
 }
