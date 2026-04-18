@@ -10,6 +10,32 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
   const [accountDropdown, setAccountDropdown] = useState(false)
   const accountDropdownRef = useRef<HTMLDivElement>(null)
 
+  const [notificationDropdown, setNotificationDropdown] = useState(false)
+  const notificationDropdownRef = useRef<HTMLDivElement>(null)
+
+  const [notifications, setNotifications] = useState([
+    {
+      id: 1,
+      message: 'John Doe requested to buy 100 units of your product',
+      unread: true
+    },
+    {
+      id: 2,
+      message: 'Your trust score increased to 3.8!',
+      unread: true
+    },
+    {
+      id: 3,
+      message: 'The dispute with Supplier X has been resolved in your favor',
+      unread: false
+    },
+    {
+      id: 4,
+      message: 'New features have been added to the marketplace',
+      unread: false
+    }
+  ])
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -18,6 +44,13 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
       ) {
         setAccountDropdown(false)
       }
+
+      if (
+        notificationDropdownRef.current &&
+        !notificationDropdownRef.current.contains(event.target as Node)
+      ) {
+        setNotificationDropdown(false)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
@@ -25,6 +58,13 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
+
+  const unreadCount = notifications.filter(n => n.unread).length
+
+  const handleBellClick = () => {
+    setNotificationDropdown(prev => !prev)
+    setNotifications(prev => prev.map(n => ({ ...n, unread: false })))
+  }
 
   return (
     <div className="w-full flex items-center justify-between px-6 py-4 bg-amber-100 shadow-md">
@@ -42,52 +82,121 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
         Agentic Marketplace
       </div>
 
-      {/* RIGHT: ACCOUNT */}
-      <div className="relative">
-        <button
-          onClick={() => setAccountDropdown(!accountDropdown)}
-          className="font-medium text-gray-700"
-        >
-          Account Settings
-        </button>
+      {/* RIGHT SIDE */}
+      <div className="flex items-center gap-8 relative">
 
-        {accountDropdown && (
-          <div
-            ref={accountDropdownRef}
-            className="absolute right-0 top-12 bg-white rounded-2xl shadow-lg p-4 w-48 flex flex-col gap-2 z-50"
+        <div className="relative" ref={accountDropdownRef}>
+          <button
+            onClick={() => setAccountDropdown(prev => !prev)}
+            className="font-medium text-gray-700"
           >
-            <button
-              onClick={() =>
-                router.push(
-                  accountType === 'individual'
-                    ? '/setup-profile'
-                    : '/setup-organization'
-                )
-              }
-              className="text-left hover:text-amber-600"
-            >
-              Edit Profile
-            </button>
+            Account Settings
+          </button>
 
-            <button className="text-left hover:text-amber-600">
-              Reset Password
-            </button>
+          {accountDropdown && (
+            <div className="absolute right-0 top-10 bg-white rounded-2xl shadow-lg p-4 w-48 flex flex-col gap-2 z-50">
+              <button
+                onClick={() =>
+                  router.push(
+                    accountType === 'individual'
+                      ? '/setup-profile'
+                      : '/setup-organization'
+                  )
+                }
+                className="text-left hover:text-amber-600"
+              >
+                Edit Profile
+              </button>
 
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut()
-                router.push('/login')
-              }}
-              className="text-left hover:text-amber-600"
-            >
-              Sign Out
-            </button>
+              <button className="text-left hover:text-amber-600">
+                Reset Password
+              </button>
 
-            <button className="text-left text-red-500 hover:text-red-600">
-              Delete Account
-            </button>
-          </div>
-        )}
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut()
+                  router.push('/login')
+                }}
+                className="text-left hover:text-amber-600"
+              >
+                Sign Out
+              </button>
+
+              <button className="text-left text-red-500 hover:text-red-600">
+                Delete Account
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative" ref={notificationDropdownRef}>
+          <button
+            onClick={handleBellClick}
+            className="text-2xl text-gray-800 hover:text-amber-700 translate-y-0.25 p-2 rounded-full border-[1.5px] border-amber-700 hover:border-amber-700 bg-amber-100 hover:bg-amber-200 relative focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-amber-100"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+              />
+            </svg>
+
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-amber-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {notificationDropdown && (
+            <div className="absolute right-0 top-12 bg-amber-50 border border-amber-200 rounded-2xl shadow-lg p-4 w-80 max-h-96 overflow-hidden flex flex-col gap-3 z-50">
+              <div className="border-b border-amber-200 pb-2">
+                <h3 className="font-semibold text-gray-800">Notifications</h3>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3">
+                {notifications.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">No notifications</p>
+                ) : (
+                  notifications.map(notification => (
+                    <div
+                      key={notification.id}
+                      className={`p-3 rounded-xl border shadow-sm transition-colors hover:shadow-md hover:-translate-y-[1px] transform ${
+                        notification.unread
+                          ? 'bg-amber-200/60 border-amber-400 ring-1 ring-amber-300/60'
+                          : 'bg-amber-100 border-amber-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-gray-700 text-sm">{notification.message}</p>
+                        </div>
+                        {notification.unread && (
+                          <div className="w-2 h-2 bg-amber-700 rounded-full mt-1"></div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t border-amber-200 pt-3">
+                <button
+                  onClick={() => {
+                    setNotificationDropdown(false)
+                    router.push('/dashboard/notifications')
+                  }}
+                  className="w-full bg-amber-100 hover:bg-amber-200 text-gray-800 font-medium py-2 rounded-xl border border-amber-200 transition-colors"
+                >
+                  Show more
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
 
     </div>
