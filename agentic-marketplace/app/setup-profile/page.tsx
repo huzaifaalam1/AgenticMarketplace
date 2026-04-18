@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import DashboardLayout from '@/components/DashboardLayout'
 import CountryCityDropdown from '@/components/CountryCityDropdown'
 import PhoneInput from '@/components/PhoneInput'
 import IndustriesDropdown from '@/components/IndustriesDropdown'
@@ -10,8 +11,11 @@ import WebsiteInput from '@/components/WebsiteInput'
 import BioTextarea from '@/components/BioTextarea'
 
 export default function SetupProfile() {
+  const router = useRouter()
+
   const [loading, setLoading] = useState(false)
   const [accountType, setAccountType] = useState<'individual' | 'organization' | null>(null)
+  const [isOnboarding, setIsOnboarding] = useState(true)
 
   const [fullName, setFullName] = useState('')
   const [organizationName, setOrganizationName] = useState('')
@@ -23,19 +27,12 @@ export default function SetupProfile() {
   const [city, setCity] = useState('')
   const [phone, setPhone] = useState('')
   const [website, setWebsite] = useState('')
-  const [dialCode, setDialCode] = useState('')
   const [marketplaceRole, setMarketplaceRole] = useState<'buyer' | 'supplier' | 'both'>('buyer')
-
-  const router = useRouter()
 
   useEffect(() => {
     const fetchProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-
-      if (!session) {
-        router.push('/login')
-        return
-      }
+      if (!session) return router.push('/login')
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -43,19 +40,24 @@ export default function SetupProfile() {
         .eq('id', session.user.id)
         .single()
 
-      if (!profile) {
-        router.push('/onboarding')
-        return
-      }
-
-      if (profile.profile_completed) {
-        router.push('/dashboard')
-        return
-      }
+      if (!profile) return router.push('/onboarding')
 
       setAccountType(profile.account_type)
+
+      if (profile.profile_completed) {
+        setIsOnboarding(false)
+      }
+
       setFullName(profile.full_name || '')
       setOrganizationName(profile.organization_name || '')
+      setJobTitle(profile.job_title || '')
+      setCompanyRole(profile.company_role || '')
+      setIndustry(profile.industry || '')
+      setBusinessDescription(profile.business_description || '')
+      setCountry(profile.country || '')
+      setCity(profile.city || '')
+      setPhone(profile.phone || '')
+      setWebsite(profile.website || '')
       setMarketplaceRole(profile.marketplace_role || 'buyer')
     }
 
@@ -64,26 +66,16 @@ export default function SetupProfile() {
 
   const handleSave = async () => {
     if (!accountType) return
-
     setLoading(true)
 
     const { data: { session } } = await supabase.auth.getSession()
 
-    if (!session) {
-      setLoading(false)
-      router.push('/login')
-      return
-    }
-
     const { error } = await supabase
       .from('profiles')
       .update({
-        display_name:
-          accountType === 'individual' ? fullName : organizationName,
-        full_name:
-          accountType === 'individual' ? fullName : null,
-        organization_name:
-          accountType === 'organization' ? organizationName : null,
+        display_name: accountType === 'individual' ? fullName : organizationName,
+        full_name: accountType === 'individual' ? fullName : null,
+        organization_name: accountType === 'organization' ? organizationName : null,
         job_title: accountType === 'individual' ? jobTitle : null,
         company_role: accountType === 'organization' ? companyRole : null,
         industry,
@@ -95,171 +87,78 @@ export default function SetupProfile() {
         website,
         profile_completed: true,
       })
-      .eq('id', session.user.id)
+      .eq('id', session?.user.id)
 
     setLoading(false)
 
-    if (error) {
-      setLoading(false)
-      alert(error.message)
-    } else {
-
-      // Create wallet if it doesn't exist
-      const { data: existingWallet } = await supabase
-        .from('wallets')
-        .select('id')
-        .eq('owner_id', session.user.id)
-        .maybeSingle()
-
-      if (!existingWallet) {
-        await supabase.from('wallets').insert({
-          owner_type: 'individual',
-          owner_id: session.user.id,
-          available_balance: 0,
-          escrow_balance: 0,
-          currency: 'USD',
-        })
-      }
-      router.push('/dashboard')
-    }
-
-    const { data: existingWallet } = await supabase
-      .from('wallets')
-      .select('id')
-      .eq('owner_id', session.user.id)
-      .eq('owner_type', 'individual')
-      .maybeSingle()
-
-    if (!existingWallet) {
-      const { error: walletError } = await supabase
-        .from('wallets')
-        .insert({
-          owner_type: 'individual',
-          owner_id: session.user.id,
-          available_balance: 0,
-          escrow_balance: 0,
-          currency: 'USD',
-        })
-
-      if (walletError) {
-        setLoading(false)
-        alert(walletError.message)
-        return
-      }
-    }
-
-    setLoading(false)
-    router.push('/dashboard')
+    if (error) alert(error.message)
+    else router.push('/dashboard')
   }
 
-  return (
-    <div className="min-h-screen bg-yellow-50 flex items-center justify-center px-6">
-      <div className="bg-amber-50 p-10 rounded-3xl shadow-xl w-full max-w-xl">
+  const content = (
+    <div className="max-w-xl mx-auto">
 
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">
-          Complete Your Profile
-        </h1>
+      {!isOnboarding && (
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="mb-4 text-sm text-gray-600 hover:text-amber-600"
+        >
+          ← Back to Dashboard
+        </button>
+      )}
 
-        {/* Identity */}
+      <div className="bg-amber-50 p-10 rounded-3xl shadow-xl space-y-5">
+
+        <h2 className="text-xl font-semibold text-gray-800">
+          {isOnboarding ? 'Complete Your Profile' : 'Edit Profile'}
+        </h2>
+
         {accountType === 'individual' && (
-          <>
-            <input
-              type="text"
-              placeholder="Full Name"
-              className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-
-            <input
-              type="text"
-              placeholder="Job Title"
-              className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-            />
-          </>
+          <div className="grid grid-cols-2 gap-4">
+            <input className="input" placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            <input className="input" placeholder="Job Title" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+          </div>
         )}
 
         {accountType === 'organization' && (
-          <>
-            <input
-              type="text"
-              placeholder="Organization Name"
-              className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-              value={organizationName}
-              onChange={(e) => setOrganizationName(e.target.value)}
-            />
-
-            <input
-              type="text"
-              placeholder="Your Role in Company"
-              className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-              value={companyRole}
-              onChange={(e) => setCompanyRole(e.target.value)}
-            />
-          </>
+          <div className="grid grid-cols-2 gap-4">
+            <input className="input" placeholder="Organization Name" value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} />
+            <input className="input" placeholder="Your Role" value={companyRole} onChange={(e) => setCompanyRole(e.target.value)} />
+          </div>
         )}
 
-        {/* Business Info */}
-        <IndustriesDropdown
-          selectedIndustry={industry}
-          onIndustryChange={setIndustry}
-          className="mb-4"
-        />
+        <IndustriesDropdown selectedIndustry={industry} onIndustryChange={setIndustry} />
 
-        <select
-          className="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:ring-2 focus:ring-amber-400"
-          value={marketplaceRole}
-          onChange={(e) =>
-            setMarketplaceRole(e.target.value as any)
-          }
-          >
+        <select className="input" value={marketplaceRole} onChange={(e) => setMarketplaceRole(e.target.value as any)}>
           <option value="buyer">Buyer</option>
           <option value="supplier">Supplier</option>
           <option value="both">Both</option>
         </select>
 
-        <BioTextarea
-          value={businessDescription}
-          onChange={setBusinessDescription}
-          maxWords={150}
-          maxCharacters={1000}
-          className="mb-4"
-        />
+        <BioTextarea value={businessDescription} onChange={setBusinessDescription} />
 
-        {/* Location */}
         <CountryCityDropdown
           selectedCountry={country}
           selectedCity={city}
           onCountryChange={setCountry}
           onCityChange={setCity}
-          onDialCodeChange={setDialCode}
         />
 
-        {/* Contact */}
-        <PhoneInput
-          value={phone}
-          onChange={setPhone}
-          defaultCountry={country || 'US'}
-          className="mb-4"
-        />
+        <PhoneInput value={phone} onChange={setPhone} />
 
-        <WebsiteInput
-          value={website}
-          onChange={setWebsite}
-          className="mb-6"
-        />
+        <WebsiteInput value={website} onChange={setWebsite} />
 
         <button
           onClick={handleSave}
           disabled={loading}
-          className="w-full py-3 rounded-xl bg-amber-400 text-gray-900 font-medium hover:bg-amber-500 transition"
+          className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-500"
         >
-          {loading ? 'Saving...' : 'Finish Setup'}
+          {loading ? 'Saving...' : 'Save Changes'}
         </button>
 
       </div>
     </div>
   )
+
+  return isOnboarding ? content : <DashboardLayout>{content}</DashboardLayout>
 }

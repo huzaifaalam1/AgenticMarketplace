@@ -67,20 +67,19 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
   }
 
   return (
-    <div className="w-full flex justify-between items-center px-8 py-4 bg-amber-100 shadow-md">
+    <div className="w-full flex items-center justify-between px-6 py-4 bg-amber-100 shadow-md">
 
-      {/* LEFT SIDE */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onMenuClick}
-          className="text-xl"
-        >
-          ☰
-        </button>
+      {/* LEFT: MENU */}
+      <button
+        onClick={onMenuClick}
+        className="text-2xl"
+      >
+        ☰
+      </button>
 
-        <span className="text-xl font-semibold text-gray-800">
-          {displayName}
-        </span>
+      {/* CENTER: APP NAME */}
+      <div className="absolute left-1/2 transform -translate-x-1/2 text-2xl font-semibold text-gray-800">
+        Agentic Marketplace
       </div>
 
       {/* RIGHT SIDE */}
