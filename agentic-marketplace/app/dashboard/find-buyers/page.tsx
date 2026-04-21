@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import DashboardLayout from '@/components/DashboardLayout'
+import DealModal from '@/components/DealModal'
 
 export default function FindBuyers() {
   const [buyers, setBuyers] = useState<any[]>([])
@@ -12,6 +13,8 @@ export default function FindBuyers() {
   const [categories, setCategories] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
+  const [selectedBuyer, setSelectedBuyer] = useState<any>(null)
+  const [sentInvites, setSentInvites] = useState<string[]>([])
 
   const filterRef = useRef<HTMLDivElement>(null)
 
@@ -44,6 +47,20 @@ export default function FindBuyers() {
       if (data) setBuyers(data)
     }
 
+    const loadSentInvites = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const { data } = await supabase
+        .from('notifications')
+        .select('related_listing_id')
+        .eq('sender_id', session?.user.id)
+        .eq('type', 'deal_invite')
+
+      if (data) {
+        setSentInvites(data.map(n => n.related_listing_id))
+      }
+    }
+
     const loadFilters = async () => {
       const { data: categoryData } = await supabase
         .from('buyer_requests')
@@ -64,6 +81,7 @@ export default function FindBuyers() {
 
     loadBuyers()
     loadFilters()
+    loadSentInvites()
   }, [search, category, country])
 
   useEffect(() => {
@@ -158,12 +176,29 @@ export default function FindBuyers() {
               ⭐ Trust: {buyer.organizations?.trust_score}
             </div>
 
-            <button className="mt-4 bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded-xl">
-              Offer Supply
-            </button>
-
+            {sentInvites.includes(buyer.id) ? (
+              <button
+                disabled
+                className="mt-4 bg-gray-300 px-4 py-2 rounded-xl cursor-not-allowed"
+              >
+                Offer Sent
+              </button>
+            ) : (
+              <button
+                onClick={() => setSelectedBuyer(buyer)}
+                className="mt-4 bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded-xl"
+              >
+                Offer Supply
+              </button>
+            )}
           </div>
         ))}
+
+        <DealModal
+          open={!!selectedBuyer}
+          supplier={selectedBuyer}   // reuse prop name, don't change modal
+          onClose={() => setSelectedBuyer(null)}
+        />
       </div>
 
     </DashboardLayout>

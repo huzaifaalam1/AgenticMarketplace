@@ -9,32 +9,25 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
 
   const [accountDropdown, setAccountDropdown] = useState(false)
   const accountDropdownRef = useRef<HTMLDivElement>(null)
-
   const [notificationDropdown, setNotificationDropdown] = useState(false)
   const notificationDropdownRef = useRef<HTMLDivElement>(null)
+  const [notifications, setNotifications] = useState<any[]>([])
 
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      message: 'John Doe requested to buy 100 units of your product',
-      unread: true
-    },
-    {
-      id: 2,
-      message: 'Your trust score increased to 3.8!',
-      unread: true
-    },
-    {
-      id: 3,
-      message: 'The dispute with Supplier X has been resolved in your favor',
-      unread: false
-    },
-    {
-      id: 4,
-      message: 'New features have been added to the marketplace',
-      unread: false
+  useEffect(() => {
+    const loadNotifications = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', session?.user.id)
+        .order('created_at', { ascending: false })
+
+      if (data) setNotifications(data)
     }
-  ])
+
+    loadNotifications()
+  }, [])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -59,7 +52,20 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
     }
   }, [])
 
-  const unreadCount = notifications.filter(n => n.unread).length
+  const unreadCount = notifications.filter(n => !n.read).length
+
+  const handleDecision = async (id: string, decision: 'accepted' | 'rejected') => {
+    await supabase
+      .from('notifications')
+      .update({ status: decision })
+      .eq('id', id)
+
+    setNotifications(prev =>
+      prev.map(n =>
+        n.id === id ? { ...n, status: decision } : n
+      )
+    )
+  }
 
   const handleBellClick = () => {
     setNotificationDropdown(prev => !prev)
@@ -169,12 +175,43 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
                           : 'bg-amber-100 border-amber-300'
                       }`}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="text-gray-700 text-sm">{notification.message}</p>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-start justify-between">
+                          <p className="text-gray-700 text-sm flex-1">
+                            {notification.message}
+                          </p>
+
+                          {notification.unread && (
+                            <div className="w-2 h-2 bg-amber-700 rounded-full mt-1 ml-2"></div>
+                          )}
                         </div>
-                        {notification.unread && (
-                          <div className="w-2 h-2 bg-amber-700 rounded-full mt-1"></div>
+
+                        {/* ACTION BUTTONS */}
+                        {notification.type === 'deal_invite' && notification.status === 'pending' && (
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => handleDecision(notification.id, 'accepted')}
+                              className="px-3 py-1 bg-green-400 hover:bg-green-500 rounded-lg text-sm"
+                            >
+                              Accept
+                            </button>
+
+                            <button
+                              onClick={() => handleDecision(notification.id, 'rejected')}
+                              className="px-3 py-1 bg-red-400 hover:bg-red-500 rounded-lg text-sm"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
+
+                        {/* STATUS DISPLAY */}
+                        {notification.type === 'deal_invite' && notification.status !== 'pending' && (
+                          <span className="text-xs text-gray-500">
+                            {notification.status === 'accepted'
+                              ? '✅ Accepted'
+                              : '❌ Rejected'}
+                          </span>
                         )}
                       </div>
                     </div>

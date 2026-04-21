@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import DashboardLayout from '@/components/DashboardLayout'
+import DealModal from '@/components/DealModal'
 
 export default function FindSuppliers() {
   const [suppliers, setSuppliers] = useState<any[]>([])
@@ -12,6 +13,8 @@ export default function FindSuppliers() {
   const [categories, setCategories] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
+  const [selectedSupplier, setSelectedSupplier] = useState<any>(null)
+  const [sentInvites, setSentInvites] = useState<string[]>([])
 
   const filterRef = useRef<HTMLDivElement>(null)
 
@@ -45,6 +48,20 @@ export default function FindSuppliers() {
       if (data) setSuppliers(data)
     }
 
+    const loadSentInvites = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const { data } = await supabase
+        .from('notifications')
+        .select('related_listing_id')
+        .eq('sender_id', session?.user.id)
+        .eq('type', 'deal_invite')
+
+      if (data) {
+        setSentInvites(data.map(n => n.related_listing_id))
+      }
+    }
+
     const loadFilters = async () => {
       const { data: categoryData } = await supabase
         .from('supplier_listings')
@@ -65,6 +82,7 @@ export default function FindSuppliers() {
 
     loadSuppliers()
     loadFilters()
+    loadSentInvites()
   }, [search, category, country])
 
   useEffect(() => {
@@ -84,7 +102,58 @@ export default function FindSuppliers() {
       <h1 className="text-3xl font-bold mb-10">Find Suppliers</h1>
 
       {/* SAME FILTER UI (unchanged) */}
+      <div className="flex gap-4 mb-8 items-center">
+        <input
+          type="text"
+          placeholder="Search products..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border rounded-lg px-4 py-2 w-64"
+        />
 
+        <div className="relative" ref={filterRef}>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="px-4 py-2 bg-amber-200 hover:bg-amber-300 rounded-lg"
+          >
+            ⚙ Filters
+          </button>
+
+          {showFilters && (
+            <div className="absolute top-12 left-0 bg-white rounded-2xl shadow-lg p-4 w-64 z-50">
+
+              <div className="mb-3">
+                <label className="text-sm font-medium">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full mt-1 border rounded-lg px-2 py-1"
+                >
+                  <option value="">All</option>
+                  {categories.map((cat) => (
+                    <option key={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Country</label>
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="w-full mt-1 border rounded-lg px-2 py-1"
+                >
+                  <option value="">All</option>
+                  {countries.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+            </div>
+          )}
+        </div>
+      </div>
       <div className="grid grid-cols-3 gap-6">
         {suppliers.map((supplier) => (
           <div key={supplier.id} className="bg-amber-100 rounded-3xl shadow-md p-6 flex flex-col gap-3 hover:scale-[1.02] transition">
@@ -111,12 +180,30 @@ export default function FindSuppliers() {
               ⭐ Trust: {supplier.organizations?.trust_score}
             </div>
 
-            <button className="mt-4 bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded-xl">
-              Invite to Deal
-            </button>
-
+            {sentInvites.includes(supplier.id) ? (
+              <button
+                disabled
+                className="mt-4 bg-gray-300 px-4 py-2 rounded-xl cursor-not-allowed"
+              >
+                Invite Sent
+              </button>
+            ) : (
+              <button
+                onClick={() => setSelectedSupplier(supplier)}
+                className="mt-4 bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded-xl"
+              >
+                Invite to Deal
+              </button>
+            )}
           </div>
         ))}
+
+        {/* ONE modal */}
+        <DealModal
+          open={!!selectedSupplier}
+          supplier={selectedSupplier}
+          onClose={() => setSelectedSupplier(null)}
+        />
       </div>
 
     </DashboardLayout>
