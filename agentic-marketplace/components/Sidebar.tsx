@@ -115,6 +115,11 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFund
             onClick={() => router.push('/dashboard/create-buyer')}>
             Create Request
           </button>
+
+          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
+            onClick={() => router.push('/dashboard/my-listings')}>
+            Edit Requests/Listings
+          </button>
         </div>
 
       </div>
