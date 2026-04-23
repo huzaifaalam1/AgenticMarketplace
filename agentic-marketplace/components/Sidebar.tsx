@@ -105,6 +105,16 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFund
           <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700">
             Business Analytics
           </button>
+
+          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
+            onClick={() => router.push('/dashboard/create-supplier')}>
+            Create Listing
+          </button>
+
+          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
+            onClick={() => router.push('/dashboard/create-buyer')}>
+            Create Request
+          </button>
         </div>
 
       </div>
