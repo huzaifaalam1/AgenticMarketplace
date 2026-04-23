@@ -95,7 +95,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFund
             Find Suppliers
           </button>
 
-          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700">
+          <button
+            onClick={() => router.push('/dashboard/active-deals')}
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
+          >
             Active Deals
           </button>
 
