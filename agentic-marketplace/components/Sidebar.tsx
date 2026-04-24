@@ -7,6 +7,9 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFund
   const router = useRouter()
   const [amount, setAmount] = useState('')
 
+  const [dealOpen, setDealOpen] = useState(false)
+  const [productOpen, setProductOpen] = useState(false)
+
   const handleDeposit = () => {
     const parsed = Number(amount)
     if (parsed > 0) {
@@ -74,6 +77,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFund
 
         {/* NAVIGATION */}
         <div className="flex flex-col gap-2">
+
+          {/* HOME */}
           <button
             onClick={() => router.push('/dashboard')}
             className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
@@ -81,45 +86,89 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFund
             Home
           </button>
 
-          <button
-            onClick={() => router.push('/dashboard/find-buyers')}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
-          >
-            Find Buyers
-          </button>
+          {/* 🔽 INITIATE DEALS */}
+          <div>
+            <button
+              onClick={() => {
+                setDealOpen(!dealOpen)
+                setProductOpen(false)
+              }}
+              className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700 flex justify-between items-center"
+            >
+              Initiate Deals
+              <span>{dealOpen ? '▾' : '▸'}</span>
+            </button>
 
-          <button
-            onClick={() => router.push('/dashboard/find-suppliers')}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
-          >
-            Find Suppliers
-          </button>
+            {dealOpen && (
+              <div className="ml-4 mt-1 flex flex-col gap-1">
+                <button
+                  onClick={() => router.push('/dashboard/find-buyers')}
+                  className="text-left px-3 py-2 rounded-lg hover:bg-amber-100"
+                >
+                  Find Buyers
+                </button>
 
+                <button
+                  onClick={() => router.push('/dashboard/find-suppliers')}
+                  className="text-left px-3 py-2 rounded-lg hover:bg-amber-100"
+                >
+                  Find Suppliers
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ACTIVE DEALS */}
           <button
             onClick={() => router.push('/dashboard/active-deals')}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
-          >
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700">
             Active Deals
           </button>
 
+          {/* ANALYTICS */}
           <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700">
             Business Analytics
           </button>
 
-          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
-            onClick={() => router.push('/dashboard/create-supplier')}>
-            Create Listing
-          </button>
+          {/* 🔽 ADD PRODUCTS */}
+          <div>
+            <button
+              onClick={() => {
+                setProductOpen(!productOpen)
+                setDealOpen(false)
+              }}
+              className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700 flex justify-between items-center"
+            >
+              Add Products
+              <span>{productOpen ? '▾' : '▸'}</span>
+            </button>
 
-          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
-            onClick={() => router.push('/dashboard/create-buyer')}>
-            Create Request
-          </button>
+            {productOpen && (
+              <div className="ml-4 mt-1 flex flex-col gap-1">
+                <button
+                  onClick={() => router.push('/dashboard/create-supplier')}
+                  className="text-left px-3 py-2 rounded-lg hover:bg-amber-100"
+                >
+                  Create Listing
+                </button>
 
-          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-100 hover:text-amber-700"
-            onClick={() => router.push('/dashboard/my-listings')}>
-            Edit Requests/Listings
-          </button>
+                <button
+                  onClick={() => router.push('/dashboard/create-buyer')}
+                  className="text-left px-3 py-2 rounded-lg hover:bg-amber-100"
+                >
+                  Create Request
+                </button>
+
+                <button
+                  onClick={() => router.push('/dashboard/my-listings')}
+                  className="text-left px-3 py-2 rounded-lg hover:bg-amber-100"
+                >
+                  Edit Requests/Listings
+                </button>
+              </div>
+            )}
+          </div>
+
         </div>
 
       </div>
