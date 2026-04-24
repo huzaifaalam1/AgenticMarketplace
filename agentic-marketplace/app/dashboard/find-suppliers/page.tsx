@@ -32,6 +32,8 @@ export default function FindSuppliers() {
           min_order_quant,
           lead_time_days,
           country,
+          organization_id,
+          user_id,
           organizations (
             name,
             trust_score,
@@ -51,11 +53,26 @@ export default function FindSuppliers() {
     const loadSentInvites = async () => {
       const { data: { session } } = await supabase.auth.getSession()
 
-      const { data } = await supabase
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', session?.user.id)
+        .maybeSingle()
+
+      const orgId = membership?.organization_id
+
+      let query = supabase
         .from('notifications')
         .select('related_listing_id')
-        .eq('sender_id', session?.user.id)
         .eq('type', 'deal_invite')
+
+      if (orgId) {
+        query = query.eq('organization_id', orgId)
+      } else {
+        query = query.eq('sender_id', session?.user.id)
+      }
+
+      const { data } = await query
 
       if (data) {
         setSentInvites(data.map(n => n.related_listing_id))

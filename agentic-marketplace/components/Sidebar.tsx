@@ -86,7 +86,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFund
             Home
           </button>
 
-          {/* 🔽 INITIATE DEALS */}
+          {/* INITIATE DEALS */}
           <div>
             <button
               onClick={() => {
@@ -130,7 +130,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen, wallet, onAddFund
             Business Analytics
           </button>
 
-          {/* 🔽 ADD PRODUCTS */}
+          {/* ADD PRODUCTS */}
           <div>
             <button
               onClick={() => {

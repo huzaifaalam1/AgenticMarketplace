@@ -14,19 +14,96 @@ export default function DealModal({ open, onClose, supplier }: any) {
 
         setLoading(true)
 
-        // TODO: replace with real recipient logic later
-        const recipientId = supplier.organizations?.id || null
-
         const { data: { session } } = await supabase.auth.getSession()
 
-        await supabase.from('notifications').insert({
+        let recipientId = null
+
+        // 🟡 CASE 1: ORGANIZATION
+        if (supplier.organization_id) {
+            const { data: member, error } = await supabase
+                .from('organization_members')
+                .select('user_id')
+                .eq('organization_id', supplier.organization_id)
+                .limit(1)
+                .single()
+
+            if (error || !member) {
+                console.error('ORG MEMBER ERROR:', error)
+                alert('Could not find organization user')
+                setLoading(false)
+                return
+            }
+
+            recipientId = member.user_id
+        }
+
+        // 🟢 CASE 2: INDIVIDUAL
+        else if (supplier.user_id) {
+            recipientId = supplier.user_id
+        }
+
+        // 🔴 FAIL SAFE
+        if (!recipientId) {
+            alert('No valid recipient found')
+            setLoading(false)
+            return
+        }
+
+        let senderName = 'Someone'
+
+        // 🔹 Try org first
+        const { data: membership } = await supabase
+            .from('organization_members')
+            .select(`
+                organization_id,
+                organizations (
+                    name
+                )
+            `)
+            .eq('user_id', session?.user.id)
+            .limit(1)
+            .single()
+
+        let orgName: string | undefined
+        if (membership?.organizations) {
+            if (Array.isArray(membership.organizations)) {
+                orgName = membership.organizations[0]?.name
+            } else {
+                orgName = (membership.organizations as any)?.name
+            }
+        }
+
+        if (orgName) {
+            senderName = orgName
+        } else {
+            // 🔹 fallback → individual
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', session?.user.id)
+                .maybeSingle()
+
+            senderName = profile?.full_name || 'A user'
+        }
+
+        const message = `${senderName} invited you to a deal for "${supplier.title}"`
+
+        const { error } = await supabase.from('notifications').insert({
             user_id: recipientId,
             sender_id: session?.user.id,
             related_listing_id: supplier.id,
-            message: `${session?.user.email} invited you to a deal for "${supplier.title}"`,
+            organization_id: membership?.organization_id || null,
+            message: message,
             type: 'deal_invite',
-            status: 'pending'
+            status: 'pending',
+            read: false
         })
+
+        
+        if (error) {
+            console.error('NOTIFICATION ERROR:', error)
+            alert(error.message)
+        }
 
         setLoading(false)
         onClose()

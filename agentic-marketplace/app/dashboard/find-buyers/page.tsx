@@ -31,6 +31,8 @@ export default function FindBuyers() {
           budget_max,
           quantity,
           country,
+          organization_id,
+          user_id,
           organizations (
             name,
             trust_score,
@@ -49,12 +51,37 @@ export default function FindBuyers() {
 
     const loadSentInvites = async () => {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', session?.user.id)
+        .maybeSingle()
 
-      const { data } = await supabase
-        .from('notifications')
-        .select('related_listing_id')
-        .eq('sender_id', session?.user.id)
-        .eq('type', 'deal_invite')
+      const orgId = membership?.organization_id
+      console.log('ORG ID:', orgId)
+
+      let data = null
+
+      if (orgId) {
+        const res = await supabase
+          .from('notifications')
+          .select('related_listing_id')
+          .eq('type', 'deal_invite')
+          .eq('organization_id', orgId)
+
+        data = res.data
+        console.log('ORG QUERY RESULT:', data)
+      } else {
+        const res = await supabase
+          .from('notifications')
+          .select('related_listing_id')
+          .eq('type', 'deal_invite')
+          .eq('sender_id', session.user.id)
+
+        data = res.data
+        console.log('USER QUERY RESULT:', data)
+      }
 
       if (data) {
         setSentInvites(data.map(n => n.related_listing_id))
