@@ -1,150 +1,139 @@
 'use client'
 
-import { useRouter, useParams, usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useParams, usePathname } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
 import ProgressBar from '@/components/ProgressBar'
 
-interface Risk {
-    category: string
-    riskLevel: string
-    clause: string
-    explanation: string
-}
-
 export default function AISummaryPage() {
-    const router = useRouter()
-    const { dealId } = useParams()
-    const pathname = usePathname()
+  const { dealId } = useParams()
+  const pathname = usePathname()
 
-    // 🔥 Stage from URL
-    const step = pathname.split('/').pop() ?? ''
+  const [result, setResult] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-    const stageMap: Record<string, number> = {
-        'make-contract': 1,
-        'view-contract': 2,
-        'process': 3,
-        'ai-summary': 4,
-        'disputes': 5
+  const step = pathname.split('/').pop() ?? ''
+
+  const stageMap: Record<string, number> = {
+    'make-contract': 1,
+    'view-contract': 2,
+    'process': 3,
+    'ai-summary': 4,
+    'disputes': 5
+  }
+
+  const currentStage = stageMap[step] ?? 1
+
+  useEffect(() => {
+    const runAnalysis = async () => {
+      setLoading(true)
+
+      const mockContract = {
+        product: 'Shoes',
+        quantity: 100,
+        delivery_days: 7,
+        payment_terms: 'Escrow'
+      }
+
+      const mockEvents = [
+        { role: 'supplier', type: 'text', content: 'Shipment dispatched', created_at: '2026-04-20' },
+        { role: 'supplier', type: 'image', content: 'warehouse.jpg', created_at: '2026-04-21' },
+        { role: 'buyer', type: 'text', content: 'Received goods', created_at: '2026-04-23' }
+      ]
+
+      const res = await fetch('/api/ai/analyze-deal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contract: mockContract,
+          events: mockEvents
+        })
+      })
+
+      const data = await res.json()
+      console.log('FRONTEND RESPONSE:', data)
+
+      if (data.error) {
+        console.error('API ERROR:', data.error)
+        setLoading(false)
+        return
+      }
+
+      setResult(data)
+      setLoading(false)
     }
 
-    const currentStage = stageMap[step] ?? 1
+    runAnalysis()
+  }, [])
 
-    // 🔹 Mock data (same structure as your original)
-    const risks: Risk[] = [
-        {
-        category: 'Payment Terms',
-        riskLevel: 'High',
-        clause: 'Payment due 90 days after delivery',
-        explanation:
-            'Extended payment terms increase cash flow risk and may affect working capital.'
-        },
-        {
-        category: 'Liability',
-        riskLevel: 'Medium',
-        clause: 'Limited liability to contract value',
-        explanation:
-            'Standard limitation clause, but consider if adequate for potential damages.'
-        },
-        {
-        category: 'Termination',
-        riskLevel: 'Low',
-        clause: '30-day termination notice period',
-        explanation:
-            'Reasonable termination clause providing adequate notice period.'
-        }
-    ]
+  return (
+    <DashboardLayout>
+      <div className="p-10 max-w-4xl mx-auto">
 
-    const summary =
-        'This contract presents moderate overall risk. The primary concern is extended payment terms. Liability and termination clauses are within acceptable industry standards.'
+        <ProgressBar stage={currentStage} />
 
-    return (
-        <DashboardLayout>
-        <div className="min-h-screen p-10 max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">AI Deal Analysis</h1>
 
-            {/* 🔥 Progress Bar */}
-            <ProgressBar stage={currentStage} />
-
-            <h1 className="text-3xl font-bold mb-8 text-center">
-            AI Contract Summary
-            </h1>
-
-            {/* 🔹 Summary */}
-            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-3">Executive Summary</h2>
-            <p className="text-gray-700">{summary}</p>
-            </div>
-
-            {/* 🔹 Risk Overview */}
-            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">Risk Overview</h2>
-
-            <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="bg-red-100 p-3 rounded">
-                <div className="text-2xl font-bold text-red-600">
-                    {risks.filter(r => r.riskLevel === 'High').length}
-                </div>
-                <div className="text-sm text-gray-600">High Risk</div>
-                </div>
-
-                <div className="bg-yellow-100 p-3 rounded">
-                <div className="text-2xl font-bold text-yellow-600">
-                    {risks.filter(r => r.riskLevel === 'Medium').length}
-                </div>
-                <div className="text-sm text-gray-600">Medium Risk</div>
-                </div>
-
-                <div className="bg-green-100 p-3 rounded">
-                <div className="text-2xl font-bold text-green-600">
-                    {risks.filter(r => r.riskLevel === 'Low').length}
-                </div>
-                <div className="text-sm text-gray-600">Low Risk</div>
-                </div>
-            </div>
-            </div>
-
-            {/* 🔹 Risk Details */}
-            <div className="space-y-4">
-            {risks.map((risk, index) => (
-                <div key={index} className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-lg font-semibold">{risk.category}</h3>
-
-                    <span
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        risk.riskLevel === 'High'
-                        ? 'bg-red-100 text-red-700'
-                        : risk.riskLevel === 'Medium'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-green-100 text-green-700'
-                    }`}
-                    >
-                    {risk.riskLevel}
-                    </span>
-                </div>
-
-                <p className="mb-2">
-                    <strong>Clause:</strong> {risk.clause}
+        {loading ? (
+          <p className="text-gray-500">Analyzing deal...</p>
+        ) : result ? (
+          <>
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              <div className="bg-white p-6 rounded-xl shadow">
+                <h2 className="font-semibold text-gray-600">Supplier Score</h2>
+                <p className="text-3xl font-bold text-amber-600">
+                  {result.supplier_score ?? '—'}
                 </p>
+              </div>
 
-                <p>
-                    <strong>Explanation:</strong> {risk.explanation}
+              <div className="bg-white p-6 rounded-xl shadow">
+                <h2 className="font-semibold text-gray-600">Buyer Score</h2>
+                <p className="text-3xl font-bold text-amber-600">
+                  {result.buyer_score ?? '—'}
                 </p>
-                </div>
-            ))}
+              </div>
             </div>
 
-            {/* 🔹 Continue Button */}
-            <div className="mt-10 text-center">
-            <button
-                onClick={() =>
-                router.push(`/dashboard/active-deals/${dealId}/disputes`)
-                }
-                className="bg-amber-400 hover:bg-amber-500 px-6 py-3 rounded-lg font-semibold"
-            >
-                Continue to Disputes
-            </button>
+            <div className="bg-white p-6 rounded-xl shadow mb-6">
+              <h2 className="font-semibold mb-2">Verdict</h2>
+              <p className="capitalize text-lg">
+                {result.verdict ?? 'Unknown'}
+              </p>
             </div>
-        </div>
-        </DashboardLayout>
-    )
+
+            <div className="bg-white p-6 rounded-xl shadow mb-6">
+              <h2 className="font-semibold mb-2">Issues</h2>
+
+              {Array.isArray(result.issues) && result.issues.length > 0 ? (
+                <ul className="list-disc ml-5">
+                  {result.issues.map((issue: string, idx: number) => (
+                    <li key={idx}>{issue}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-500">No issues detected</p>
+              )}
+            </div>
+
+            <div className="bg-green-100 p-6 rounded-xl mb-6">
+              <h2 className="font-semibold">Escrow Decision</h2>
+              <p className="text-lg">
+                {result.escrow_release ?? '—'}
+              </p>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow">
+              <h2 className="font-semibold mb-2">Summary</h2>
+              <p className="text-gray-700">
+                {result.summary ?? 'No summary available'}
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="text-red-500">Failed to load AI analysis</p>
+        )}
+
+      </div>
+    </DashboardLayout>
+  )
 }
