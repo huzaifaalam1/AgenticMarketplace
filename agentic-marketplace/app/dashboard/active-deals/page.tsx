@@ -55,7 +55,7 @@ export default function ActiveDeals() {
   )
 
   const handleViewDetails = (dealId: string) => {
-    router.push('/dashboard/active-deals/risk-scanner')
+    router.push(`/dashboard/active-deals/${dealId}/make-contract`)
   }
 
   return (
