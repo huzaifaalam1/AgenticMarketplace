@@ -34,7 +34,7 @@ export default function ViewContract() {
             </div>
 
             <button
-            onClick={() => router.push(`/dashboard/active-deals/${dealId}/process`)}
+            onClick={() => router.push(`/dashboard/active-deals/${dealId}/view-contract`)}
             className="mt-6 bg-amber-400 px-6 py-2 rounded-lg"
             >
             Proceed to Processing
