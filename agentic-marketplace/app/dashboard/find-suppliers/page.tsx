@@ -4,8 +4,11 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import DashboardLayout from '@/components/DashboardLayout'
 import DealModal from '@/components/DealModal'
+import { useRouter } from 'next/navigation'
 
 export default function FindSuppliers() {
+  const router = useRouter()
+
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("")
@@ -17,6 +20,68 @@ export default function FindSuppliers() {
   const [sentInvites, setSentInvites] = useState<string[]>([])
 
   const filterRef = useRef<HTMLDivElement>(null)
+
+  const startChat = async (targetUserId: string | null | undefined) => {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) {
+      console.error('GET SESSION ERROR:', sessionError)
+      alert(sessionError.message)
+      return
+    }
+
+    const currentUserId = session?.user?.id
+    if (!currentUserId) {
+      alert('Not authenticated')
+      return
+    }
+
+    if (!targetUserId) {
+      alert('Could not determine the recipient user id for this listing')
+      return
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from('conversations')
+      .select('*')
+      .or(
+        `and(user1_id.eq.${currentUserId},user2_id.eq.${targetUserId}),and(user1_id.eq.${targetUserId},user2_id.eq.${currentUserId})`
+      )
+      .maybeSingle()
+
+    if (existingError) {
+      console.error('FIND EXISTING CONVERSATION ERROR:', existingError)
+      alert(existingError.message)
+      return
+    }
+
+    let chatId = existing?.id
+
+    if (!existing) {
+      const { data, error: createError } = await supabase
+        .from('conversations')
+        .insert({
+          user1_id: currentUserId,
+          user2_id: targetUserId
+        })
+        .select()
+        .single()
+
+      if (createError) {
+        console.error('CREATE CONVERSATION ERROR:', createError)
+        alert(createError.message)
+        return
+      }
+
+      chatId = data?.id
+    }
+
+    if (!chatId) {
+      alert('Failed to create or find a conversation')
+      return
+    }
+
+    router.push(`/dashboard?chat=${chatId}`)
+  }
 
   useEffect(() => {
     const loadSuppliers = async () => {
@@ -75,7 +140,7 @@ export default function FindSuppliers() {
       const { data } = await query
 
       if (data) {
-        setSentInvites(data.map(n => n.related_listing_id))
+        setSentInvites(data.map((n: any) => String(n.related_listing_id)))
       }
     }
 
@@ -197,21 +262,30 @@ export default function FindSuppliers() {
               ⭐ Trust: {supplier.organizations?.trust_score}
             </div>
 
-            {sentInvites.includes(supplier.id) ? (
+            <div className="mt-4 flex gap-2">
+              {sentInvites.includes(String(supplier.id)) ? (
+                <button
+                  disabled
+                  className="flex-1 bg-gray-300 px-3 py-2 rounded-xl text-sm cursor-not-allowed"
+                >
+                  Invite Sent
+                </button>
+              ) : (
+                <button
+                  onClick={() => setSelectedSupplier(supplier)}
+                  className="flex-1 bg-amber-400 hover:bg-amber-500 px-3 py-2 rounded-xl text-sm"
+                >
+                  Invite to Deal
+                </button>
+              )}
+
               <button
-                disabled
-                className="mt-4 bg-gray-300 px-4 py-2 rounded-xl cursor-not-allowed"
+                onClick={() => startChat(supplier.user_id)}
+                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-xl text-sm"
               >
-                Invite Sent
+                Message
               </button>
-            ) : (
-              <button
-                onClick={() => setSelectedSupplier(supplier)}
-                className="mt-4 bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded-xl"
-              >
-                Invite to Deal
-              </button>
-            )}
+            </div>
           </div>
         ))}
 
