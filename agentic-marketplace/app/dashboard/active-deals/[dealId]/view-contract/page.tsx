@@ -268,7 +268,7 @@ export default function ViewContract() {
                         </p>
 
                         <button
-                            onClick={() => router.push(`/dashboard/active-deals/${dealId}/process`)}
+                            onClick={() => router.push(`/dashboard/active-deals/${dealId}/make-contract`)}
                             className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg"
                             >
                             New Contract
