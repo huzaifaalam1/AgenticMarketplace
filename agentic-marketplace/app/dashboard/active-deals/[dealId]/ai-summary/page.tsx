@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import DashboardLayout from '@/components/DashboardLayout'
 import ProgressBar from '@/components/ProgressBar'
@@ -246,6 +247,15 @@ export default function AISummaryPage() {
               <p className="text-gray-700">
                 {result.summary ?? 'No summary available'}
               </p>
+            </div>
+
+            <div className="mt-6">
+              <Link
+                href={`/dashboard/active-deals/${dealId}/disputes`}
+                className="inline-block w-full bg-amber-600 text-white text-center py-3 px-6 rounded-lg font-semibold hover:bg-amber-700 transition-colors"
+              >
+                Go to Disputes
+              </Link>
             </div>
           </>
         ) : (
