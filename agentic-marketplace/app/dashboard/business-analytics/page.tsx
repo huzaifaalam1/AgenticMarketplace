@@ -1,14 +1,13 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import DashboardLayout from '@/components/DashboardLayout'
 
-export default function ActiveDeals() {
+export default function BusinessAnalytics() {
   const [deals, setDeals] = useState<any[]>([])
   const [search, setSearch] = useState("")
-  const filterRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -27,7 +26,7 @@ export default function ActiveDeals() {
       let query = supabase
         .from('deals')
         .select(`*, buyer_org:buyer_org_id ( name, trust_score, city ), supplier_org:supplier_org_id ( name, trust_score, city ), buyer_user:buyer_user_id ( full_name ), supplier_user:supplier_user_id ( full_name ), supplier_listings:listing_id ( title, country ), buyer_requests:request_id ( title, country )`)
-        .neq('status', 'completed')
+        .eq('status', 'completed')
         .order('created_at', { ascending: false })
 
       if (orgId) {
@@ -38,7 +37,7 @@ export default function ActiveDeals() {
 
       const { data, error } = await query
 
-      console.log('JOINED DEALS:', data, error)
+      console.log('COMPLETED DEALS:', data, error)
 
       if (error) {
         console.error('DEALS ERROR:', error)
@@ -55,14 +54,10 @@ export default function ActiveDeals() {
     deal.id.toLowerCase().includes(search.toLowerCase())
   )
 
-  const handleViewDetails = (dealId: string) => {
-    router.push(`/dashboard/active-deals/${dealId}/make-contract`)
-  }
-
   return (
     <DashboardLayout>
 
-      <h1 className="text-3xl font-bold mb-10">Active Deals</h1>
+      <h1 className="text-3xl font-bold mb-10">Closed Deals</h1>
 
       <div className="flex gap-4 mb-8 items-center">
         <input
@@ -76,8 +71,8 @@ export default function ActiveDeals() {
 
       {filteredDeals.length === 0 ? (
         <div className="text-center text-gray-600 mt-20">
-          <p className="text-lg">No active deals yet</p>
-          <p className="text-sm mt-2">Accept an invite to start a deal</p>
+          <p className="text-lg">No completed deals yet</p>
+          <p className="text-sm mt-2">Completed deals will appear here</p>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-6">
@@ -136,15 +131,8 @@ export default function ActiveDeals() {
                 </div>
 
                 <div className="text-sm">
-                  Created: {new Date(deal.created_at).toLocaleDateString()}
+                  Completed: {new Date(deal.created_at).toLocaleDateString()}
                 </div>
-
-                <button
-                  onClick={() => handleViewDetails(deal.id)}
-                  className="mt-4 bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded-xl"
-                >
-                  View Details
-                </button>
 
               </div>
             )
