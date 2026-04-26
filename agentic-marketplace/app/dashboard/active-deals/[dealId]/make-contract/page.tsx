@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useParams, usePathname } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
 import DashboardLayout from '@/components/DashboardLayout'
 import ProgressBar from '@/components/ProgressBar'
 import FileUpload from '../../components/FileUpload'
@@ -12,10 +13,15 @@ export default function MakeContract() {
     const pathname = usePathname()
 
     const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-    const [contractContent, setContractContent] = useState<string>('')
-    const [contractSource, setContractSource] = useState<'upload' | 'generate' | null>(null)
+    const [contractContent, setContractContent] = useState('')
     const [analysisResults, setAnalysisResults] = useState<any>(null)
+
     const [isAnalyzing, setIsAnalyzing] = useState(false)
+    const [isGenerating, setIsGenerating] = useState(false)
+
+    const [supplierTerms, setSupplierTerms] = useState('')
+    const [buyerName, setBuyerName] = useState('Buyer')
+    const [supplierName, setSupplierName] = useState('Supplier')
 
     const step = pathname.split('/').pop() ?? ''
 
@@ -29,13 +35,47 @@ export default function MakeContract() {
 
     const currentStage = stageMap[step] ?? 1
 
-    // 🔥 FILE UPLOAD (FIXED)
+    // =========================
+    // FETCH DEAL FROM DB
+    // =========================
+    useEffect(() => {
+        async function loadDeal() {
+            if (!dealId) return
+
+            const { data, error } = await supabase
+                .from('deals')
+                .select(`
+                    *,
+                    buyer_org:buyer_org_id ( name ),
+                    supplier_org:supplier_org_id ( name ),
+                    buyer_user:buyer_user_id ( full_name ),
+                    supplier_user:supplier_user_id ( full_name )
+                `)
+                .eq('id', dealId)
+                .single()
+
+            if (error) {
+                console.error('Deal fetch error:', error)
+                return
+            }
+
+            let buyer = data?.buyer_org?.name || data?.buyer_user?.full_name || 'Buyer'
+            let supplier = data?.supplier_org?.name || data?.supplier_user?.full_name || 'Supplier'
+
+            setBuyerName(buyer)
+            setSupplierName(supplier)
+        }
+
+        loadDeal()
+    }, [dealId])
+
+    // =========================
+    // FILE UPLOAD
+    // =========================
     const handleFileSelect = async (file: File) => {
         setUploadedFile(file)
-        setContractSource('upload')
 
         if (file.type === 'application/pdf') {
-            // ❌ DON'T read PDF as text
             setContractContent('PDF uploaded — preview below')
         } else {
             const text = await file.text()
@@ -43,71 +83,66 @@ export default function MakeContract() {
         }
     }
 
-    // 🔥 DOWNLOAD
-    const handleDownload = () => {
-        if (uploadedFile) {
-            const url = URL.createObjectURL(uploadedFile)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = uploadedFile.name
-            a.click()
-            URL.revokeObjectURL(url)
+    // =========================
+    // GENERATE CONTRACT
+    // =========================
+    const handleGenerate = async () => {
+        setIsGenerating(true)
+        setUploadedFile(null)
+
+        try {
+            const res = await fetch('/api/ai/generate-contract', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    buyer: buyerName,
+                    supplier: supplierName,
+                    terms: supplierTerms,
+                    context: 'Active deal'
+                })
+            })
+
+            const data = await res.json()
+
+            if (!res.ok) {
+                throw new Error(data.error)
+            }
+
+            setContractContent(data.contract)
+
+        } catch (err) {
+            console.error(err)
+            alert('Failed to generate contract')
+        } finally {
+            setIsGenerating(false)
         }
     }
 
-    // 🔥 GENERATE CONTRACT
-    const handleGenerate = () => {
-        setContractSource('generate')
-        setUploadedFile(null)
-
-        const generatedContract = `
-SAMPLE AGREEMENT
-
-Product: Shoes
-Quantity: 100
-Delivery Time: 7 days
-Payment: Escrow
-
-Supplier must deliver goods within agreed timeline.
-Buyer must confirm receipt upon delivery.
-        `.trim()
-
-        setContractContent(generatedContract)
-    }
-
-    // 🔥 ANALYZE
+    // =========================
+    // ANALYZE (ONLY UPLOAD)
+    // =========================
     const handleAnalyse = async () => {
-        if (!uploadedFile && !contractContent) return
+        if (!uploadedFile) {
+            alert('Only uploaded contracts can be analyzed')
+            return
+        }
 
         setIsAnalyzing(true)
 
         try {
             const formData = new FormData()
+            formData.append('file', uploadedFile)
 
-            if (uploadedFile) {
-                formData.append('file', uploadedFile)
-            } else {
-                const blob = new Blob([contractContent], { type: 'text/plain' })
-                const fakeFile = new File([blob], 'generated.txt')
-                formData.append('file', fakeFile)
-            }
-
-            const response = await fetch('/api/ai/analyze-contract', {
+            const res = await fetch('/api/ai/analyze-contract', {
                 method: 'POST',
                 body: formData
             })
 
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Analysis failed')
-            }
-
+            const data = await res.json()
             setAnalysisResults(data)
 
-        } catch (error) {
-            console.error('Analysis error:', error)
-            alert('Contract analysis failed. Try again.')
+        } catch (err) {
+            console.error(err)
         } finally {
             setIsAnalyzing(false)
         }
@@ -121,83 +156,45 @@ Buyer must confirm receipt upon delivery.
 
             <h1 className="text-2xl font-bold mb-6">Create Contract</h1>
 
-            <div className="bg-white p-6 rounded shadow">
+            <div className="bg-white p-6 rounded shadow space-y-4">
 
-                {!contractContent ? (
-                    <div className="space-y-4">
-                        <FileUpload onFileSelect={handleFileSelect} />
+                <button
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    className="w-full bg-amber-400 px-6 py-3 rounded-lg"
+                >
+                    {isGenerating ? 'Generating...' : 'Generate Contract'}
+                </button>
 
+                {!contractContent && (
+                    <>
                         <div className="text-center text-gray-500">or</div>
+                        <FileUpload onFileSelect={handleFileSelect} />
+                    </>
+                )}
 
-                        <button
-                            onClick={handleGenerate}
-                            className="w-full bg-amber-400 hover:bg-amber-500 px-6 py-3 rounded-lg font-medium"
-                        >
-                            Generate Contract
-                        </button>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-
-                        {uploadedFile && (
-                            <div className="p-4 bg-green-50 border rounded">
-                                ✅ {uploadedFile.name}
-                            </div>
-                        )}
-
-                        {contractSource === 'generate' && (
-                            <div className="p-4 bg-blue-50 border rounded">
-                                📝 Generated Contract
-                            </div>
-                        )}
-
-                        {/* 🔥 PREVIEW FIXED */}
-                        <div className="border rounded">
-                            <div className="bg-gray-50 px-4 py-2 border-b">
-                                Contract Preview
-                            </div>
-
-                            <div className="h-80 overflow-y-auto p-4">
-
-                                {uploadedFile?.type === 'application/pdf' ? (
-                                    <iframe
-                                        src={URL.createObjectURL(uploadedFile)}
-                                        className="w-full h-full border"
-                                    />
-                                ) : (
-                                    <pre className="text-sm whitespace-pre-wrap">
-                                        {contractContent}
-                                    </pre>
-                                )}
-
-                            </div>
+                {contractContent && (
+                    <>
+                        <div className="border rounded h-80 overflow-y-auto p-4">
+                            <pre className="whitespace-pre-wrap text-sm">
+                                {contractContent}
+                            </pre>
                         </div>
 
-                        {/* ACTIONS */}
                         <div className="flex gap-4">
-
                             {uploadedFile && (
                                 <button
-                                    onClick={handleDownload}
-                                    className="bg-blue-500 text-white px-4 py-2 rounded"
+                                    onClick={handleAnalyse}
+                                    className="bg-purple-500 text-white px-4 py-2 rounded"
                                 >
-                                    Download
+                                    Analyze Contract
                                 </button>
                             )}
 
                             <button
-                                onClick={handleAnalyse}
-                                disabled={isAnalyzing}
-                                className="bg-purple-500 text-white px-4 py-2 rounded disabled:bg-gray-300"
-                            >
-                                {isAnalyzing ? 'Analyzing...' : 'Analyze Contract'}
-                            </button>
-
-                            <button
                                 onClick={() => {
-                                    setUploadedFile(null)
                                     setContractContent('')
-                                    setContractSource(null)
+                                    setUploadedFile(null)
                                     setAnalysisResults(null)
                                 }}
                                 className="bg-gray-500 text-white px-4 py-2 rounded"
@@ -206,36 +203,22 @@ Buyer must confirm receipt upon delivery.
                             </button>
                         </div>
 
-                        {/* RESULTS */}
                         {analysisResults && (
                             <div className="mt-6 border-t pt-6">
                                 <h3 className="font-semibold mb-4">Risk Analysis</h3>
-
-                                <p className="mb-4">{analysisResults.summary}</p>
-
-                                {analysisResults.risks?.length > 0 ? (
-                                    analysisResults.risks.map((risk: any, i: number) => (
-                                        <div key={i} className="border p-3 rounded mb-3">
-                                            <b>{risk.category}</b> ({risk.riskLevel})
-                                            <p className="text-sm">{risk.reason}</p>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p>No risks found</p>
-                                )}
+                                <p>{analysisResults.summary}</p>
                             </div>
                         )}
-                    </div>
+                    </>
                 )}
             </div>
 
-            {/* KEEP THIS EXACT */}
             <button
                 onClick={() => router.push(`/dashboard/active-deals/${dealId}/view-contract`)}
                 className="mt-6 bg-amber-400 px-6 py-2 rounded"
                 disabled={!contractContent}
             >
-                Proceed to Buyer Review
+                Proceed
             </button>
 
         </div>
