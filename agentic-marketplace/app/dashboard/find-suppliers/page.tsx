@@ -18,8 +18,37 @@ export default function FindSuppliers() {
   const [showFilters, setShowFilters] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null)
   const [sentInvites, setSentInvites] = useState<string[]>([])
+  const [profileMap, setProfileMap] = useState<Record<string, any>>({})
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
 
   const filterRef = useRef<HTMLDivElement>(null)
+
+  const hydrateProfilesForListings = async (rows: any[]) => {
+    const ids = [...new Set((rows || []).map((r) => r?.user_id).filter(Boolean))]
+    if (ids.length === 0) return
+
+    setProfileMap((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        if (!(id in next)) next[id] = null
+      }
+      return next
+    })
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, display_name, full_name, trust_score, deals_completed, city')
+      .in('id', ids)
+
+    if (!data) return
+
+    setProfileMap((prev) => {
+      const next = { ...prev }
+      for (const p of data) next[p.id] = p
+      return next
+    })
+  }
 
   const startChat = async (targetUserId: string | null | undefined) => {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -112,7 +141,10 @@ export default function FindSuppliers() {
       if (country) query = query.eq('country', country)
 
       const { data } = await query
-      if (data) setSuppliers(data)
+      if (data) {
+        setSuppliers(data)
+        hydrateProfilesForListings(data)
+      }
     }
 
     const loadSentInvites = async () => {
@@ -154,11 +186,15 @@ export default function FindSuppliers() {
         .select('country')
 
       if (categoryData) {
-        setCategories([...new Set(categoryData.map(c => c.product_category))])
+        setCategories([
+          ...new Set(categoryData.map((c) => c.product_category).filter(Boolean))
+        ] as string[])
       }
 
       if (countryData) {
-        setCountries([...new Set(countryData.map(c => c.country))])
+        setCountries([
+          ...new Set(countryData.map((c) => c.country).filter(Boolean))
+        ] as string[])
       }
     }
 
@@ -166,6 +202,25 @@ export default function FindSuppliers() {
     loadFilters()
     loadSentInvites()
   }, [search, category, country])
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        setCurrentUserId(session.user.id)
+        
+        const { data: membership } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle()
+        
+        setCurrentOrgId(membership?.organization_id || null)
+      }
+    }
+    
+    loadCurrentUser()
+  }, [])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -243,11 +298,13 @@ export default function FindSuppliers() {
             <h2 className="text-xl font-semibold">{supplier.title}</h2>
             <p className="text-sm text-gray-700">{supplier.description}</p>
 
-            <div className="text-sm">Supplier: {supplier.organizations?.name}</div>
+            <div className="text-sm">
+              Supplier: {supplier.organizations?.name || (supplier.user_id ? (profileMap[supplier.user_id]?.display_name || profileMap[supplier.user_id]?.full_name) : null) || 'Unknown'}
+            </div>
 
             <div className="text-sm">
-              Location: {supplier.organizations?.city
-                ? `${supplier.organizations.city}, ${supplier.country}`
+              Location: {(supplier.organizations?.city || (supplier.user_id ? profileMap[supplier.user_id]?.city : null))
+                ? `${supplier.organizations?.city || (supplier.user_id ? profileMap[supplier.user_id]?.city : '')}, ${supplier.country}`
                 : supplier.country}
             </div>
 
@@ -259,7 +316,7 @@ export default function FindSuppliers() {
             <div className="text-sm">Lead Time: {supplier.lead_time_days} days</div>
 
             <div className="mt-3 font-medium">
-              ⭐ Trust: {supplier.organizations?.trust_score}
+              ⭐ Trust: {supplier.organizations?.trust_score ?? (supplier.user_id ? profileMap[supplier.user_id]?.trust_score : null) ?? 0}
             </div>
 
             <div className="mt-4 flex gap-2">
@@ -269,6 +326,13 @@ export default function FindSuppliers() {
                   className="flex-1 bg-gray-300 px-3 py-2 rounded-xl text-sm cursor-not-allowed"
                 >
                   Invite Sent
+                </button>
+              ) : (currentUserId && supplier.user_id === currentUserId) || (currentOrgId && supplier.organization_id === currentOrgId) ? (
+                <button
+                  disabled
+                  className="flex-1 bg-gray-300 px-3 py-2 rounded-xl text-sm cursor-not-allowed"
+                >
+                  Your Listing
                 </button>
               ) : (
                 <button

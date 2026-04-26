@@ -98,6 +98,88 @@ export default function AISummaryPage() {
       }
 
       setResult(data)
+
+      // Update trust scores based on AI ratings
+      const updateTrustScores = async () => {
+        // Get deal info to identify buyer and supplier
+        const { data: deal } = await supabase
+          .from('deals')
+          .select('buyer_user_id, supplier_user_id, buyer_org_id, supplier_org_id')
+          .eq('id', dealId)
+          .single()
+
+        if (!deal) return
+
+        // AI returns scores 0-100, convert to 0-5 scale
+        const supplierAIScore = (data.supplier_score || 0) / 20
+        const buyerAIScore = (data.buyer_score || 0) / 20
+
+        // Helper: compute new trust score with capped change (max ±0.2 per deal)
+        const computeNewScore = (currentScore: number, aiScore: number, dealsCompleted: number) => {
+          const stabilityFactor = Math.min(dealsCompleted / 10, 1)
+          const weightNew = 0.2 - (stabilityFactor * 0.05) // 0.20 → 0.15 as experience grows
+          const rawNew = currentScore + (aiScore - currentScore) * weightNew
+          const maxChange = 0.2
+          const clamped = Math.max(currentScore - maxChange, Math.min(currentScore + maxChange, rawNew))
+          return Math.round(Math.min(5, Math.max(0, clamped)) * 10) / 10
+        }
+
+        // Update supplier trust score
+        if (deal.supplier_user_id) {
+          const { data: supplierProfile } = await supabase
+            .from('profiles')
+            .select('trust_score, deals_completed')
+            .eq('id', deal.supplier_user_id)
+            .single()
+
+          if (supplierProfile) {
+            const currentScore = supplierProfile.trust_score ?? 3.5
+            const newScore = computeNewScore(currentScore, supplierAIScore, supplierProfile.deals_completed || 0)
+            await supabase.from('profiles').update({ trust_score: newScore }).eq('id', deal.supplier_user_id)
+          }
+        } else if (deal.supplier_org_id) {
+          const { data: supplierOrg } = await supabase
+            .from('organizations')
+            .select('trust_score, deals_completed')
+            .eq('id', deal.supplier_org_id)
+            .single()
+
+          if (supplierOrg) {
+            const currentScore = supplierOrg.trust_score ?? 3.5
+            const newScore = computeNewScore(currentScore, supplierAIScore, supplierOrg.deals_completed || 0)
+            await supabase.from('organizations').update({ trust_score: newScore }).eq('id', deal.supplier_org_id)
+          }
+        }
+
+        // Update buyer trust score
+        if (deal.buyer_user_id) {
+          const { data: buyerProfile } = await supabase
+            .from('profiles')
+            .select('trust_score, deals_completed')
+            .eq('id', deal.buyer_user_id)
+            .single()
+
+          if (buyerProfile) {
+            const currentScore = buyerProfile.trust_score ?? 3.5
+            const newScore = computeNewScore(currentScore, buyerAIScore, buyerProfile.deals_completed || 0)
+            await supabase.from('profiles').update({ trust_score: newScore }).eq('id', deal.buyer_user_id)
+          }
+        } else if (deal.buyer_org_id) {
+          const { data: buyerOrg } = await supabase
+            .from('organizations')
+            .select('trust_score, deals_completed')
+            .eq('id', deal.buyer_org_id)
+            .single()
+
+          if (buyerOrg) {
+            const currentScore = buyerOrg.trust_score ?? 3.5
+            const newScore = computeNewScore(currentScore, buyerAIScore, buyerOrg.deals_completed || 0)
+            await supabase.from('organizations').update({ trust_score: newScore }).eq('id', deal.buyer_org_id)
+          }
+        }
+      }
+
+      await updateTrustScores()
       setLoading(false)
     }
 
@@ -120,14 +202,14 @@ export default function AISummaryPage() {
               <div className="bg-white p-6 rounded-xl shadow">
                 <h2 className="font-semibold text-gray-600">Supplier Score</h2>
                 <p className="text-3xl font-bold text-amber-600">
-                  {result.supplier_score ?? '—'}
+                  {result.supplier_score ? `${(result.supplier_score / 20).toFixed(1)}/5` : '—'}
                 </p>
               </div>
 
               <div className="bg-white p-6 rounded-xl shadow">
                 <h2 className="font-semibold text-gray-600">Buyer Score</h2>
                 <p className="text-3xl font-bold text-amber-600">
-                  {result.buyer_score ?? '—'}
+                  {result.buyer_score ? `${(result.buyer_score / 20).toFixed(1)}/5` : '—'}
                 </p>
               </div>
             </div>

@@ -28,14 +28,14 @@ export default function ProgressBar({ stage }: { stage: number }) {
       </div>
 
       {/* PROGRESS BAR */}
-      <div className="flex items-center justify-between relative">
+      <div className="flex items-center justify-between relative px-5">
 
         {/* Base line */}
-        <div className="absolute top-5 left-0 right-0 h-[2px] bg-gray-300" />
+        <div className="absolute top-5 left-5 right-5 h-[2px] bg-gray-300" />
 
         {/* Active progress */}
         <div
-          className="absolute top-5 left-0 h-[2px] bg-amber-400 transition-all duration-300"
+          className="absolute top-5 left-5 h-[2px] bg-amber-400 transition-all duration-300"
           style={{ width: `${((stage - 1) / (steps.length - 1)) * 100}%` }}
         />
 
