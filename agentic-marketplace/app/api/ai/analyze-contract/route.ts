@@ -6,6 +6,46 @@ import path from 'path'
 
 const execFileAsync = promisify(execFile)
 
+// =========================
+// 🧠 FIND REAL JSON ONLY
+// =========================
+function extractFinalJSON(text: string): string | null {
+  let start = -1
+  let depth = 0
+
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (start === -1) start = i
+      depth++
+    } else if (text[i] === '}') {
+      depth--
+
+      if (depth === 0 && start !== -1) {
+        const candidate = text.slice(start, i + 1)
+
+        try {
+          const parsed = JSON.parse(candidate)
+
+          if (
+            parsed &&
+            typeof parsed.summary === 'string' &&
+            Array.isArray(parsed.risks)
+          ) {
+            return candidate
+          }
+        } catch {
+          // ignore invalid blocks
+        }
+
+        // reset and continue searching
+        start = -1
+      }
+    }
+  }
+
+  return null
+}
+
 export async function POST(req: NextRequest) {
   try {
     console.log('\n===== CONTRACT ANALYSIS HIT =====')
@@ -14,7 +54,6 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File
 
     if (!file) {
-      console.error('❌ No file provided')
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
@@ -23,76 +62,72 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
     let extractedText = ''
 
-    // 🔥 PDF PARSING (STABLE)
+    // =========================
+    // 📄 TEXT EXTRACTION
+    // =========================
     if (file.type === 'application/pdf') {
       console.log('📄 Using pdftotext...')
 
       const tempPath = path.join('/tmp', `${Date.now()}-${file.name}`)
       fs.writeFileSync(tempPath, buffer)
 
-      const { stdout } = await execFileAsync('pdftotext', [
-        tempPath,
-        '-'
-      ])
-
-      extractedText = stdout
-      fs.unlinkSync(tempPath)
+      try {
+        const { stdout } = await execFileAsync('pdftotext', [tempPath, '-'])
+        extractedText = stdout
+      } catch (err) {
+        console.error('❌ pdftotext failed:', err)
+        return NextResponse.json(
+          { error: 'Failed to parse PDF' },
+          { status: 500 }
+        )
+      } finally {
+        fs.unlinkSync(tempPath)
+      }
     } else {
       console.log('📄 Parsing as plain text...')
       extractedText = buffer.toString('utf-8')
     }
 
-    console.log('📄 Extracted length:', extractedText.length)
-    console.log('📄 Preview:\n', extractedText.slice(0, 300))
-
-    // 🔥 STRICT PROMPT
-    const prompt = `
-You are a JSON generator.
-
-Return ONLY valid JSON.
-
-DO NOT:
-- explain
-- describe
-- include markdown
-- include examples
-- include placeholder values like "..." or "string"
-
-Output MUST be final JSON.
-
-IMPORTANT:
-- At the VERY END of your response, output:
-FINAL_JSON:
-<the JSON object>
-
-Do NOT put FINAL_JSON anywhere else.
-
-Schema:
-
-{
-  "summary": "string",
-  "risks": [
-    {
-      "category": "string",
-      "riskLevel": "High" | "Medium" | "Low",
-      "clause": "string",
-      "reason": "string"
+    if (!extractedText.trim()) {
+      return NextResponse.json(
+        { error: 'No readable content extracted' },
+        { status: 400 }
+      )
     }
-  ]
-}
 
-If no risks exist:
-{
-  "summary": "No major risks detected",
-  "risks": []
-}
+    console.log('📄 Extracted length:', extractedText.length)
 
-Analyze:
+    // =========================
+    // 🤖 PROMPT (FIXED)
+    // =========================
+    const prompt = `
+You are a strict JSON generator.
+
+CRITICAL RULES:
+- Output MUST be valid JSON
+- Output MUST start with { and end with }
+- Do NOT include explanations
+- Do NOT include bullet points
+- Do NOT include markdown
+- Do NOT include backticks
+- Do NOT include schema examples
+- Do NOT include validation text
+- Do NOT include anything before or after JSON
+
+Structure (DO NOT repeat this, just follow it):
+summary: string
+risks: array of objects with:
+  - category
+  - riskLevel (High | Medium | Low)
+  - clause
+  - reason
+
+Analyze this contract:
 
 ${extractedText}
 `
 
-    console.log('🤖 Sending to Gemma...')
+    console.log('🤖 Sending to Gemini...')
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:generateContent?key=${process.env.GEMINI_CONTRACT2_KEY}`,
@@ -103,62 +138,67 @@ ${extractedText}
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0,
-            responseMimeType: 'application/json',
-            maxOutputTokens: 1024
+            maxOutputTokens: 2048,
+            responseMimeType: 'application/json'
           }
         })
       }
     )
 
-    console.log('📡 Gemini status:', res.status)
+    if (!res.ok) {
+      console.error('❌ Gemini API failed:', res.status)
+      return NextResponse.json(
+        { error: 'AI request failed' },
+        { status: 500 }
+      )
+    }
 
     const data = await res.json()
-    console.log('📡 RAW RESPONSE:', JSON.stringify(data, null, 2))
 
     const text =
       data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
-    console.log('\n🧠 RAW AI TEXT:\n', text)
+    console.log('\n🧠 RAW RESPONSE:\n', text)
 
-    // 🔥 CLEAN RESPONSE
-    const cleaned = text
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .replace(/\*/g, '')
-      .trim()
+    if (!text) {
+      return NextResponse.json(
+        { error: 'Empty AI response' },
+        { status: 500 }
+      )
+    }
 
-    console.log('\n🧼 CLEANED TEXT:\n', cleaned)
+    // =========================
+    // 🧩 EXTRACT VALID JSON
+    // =========================
+    const jsonText = extractFinalJSON(text)
 
-    // 🔥 EXTRACT ALL JSON BLOCKS
-    const marker = 'FINAL_JSON:'
+    console.log('\n🧩 FINAL JSON:\n', jsonText)
 
-    const index = cleaned.lastIndexOf(marker)
+    if (!jsonText) {
+      return NextResponse.json({
+        summary: 'No valid JSON found in AI response.',
+        risks: []
+      })
+    }
 
-    if (index !== -1) {
-    const jsonString = cleaned.slice(index + marker.length).trim()
-
+    // =========================
+    // ✅ PARSE
+    // =========================
     try {
-        const parsed = JSON.parse(jsonString)
-        console.log('✅ PARSED FROM MARKER:', parsed)
-        return NextResponse.json(parsed)
+      const parsed = JSON.parse(jsonText)
+      return NextResponse.json(parsed)
     } catch (err) {
-        console.error('❌ PARSE FAILED AFTER MARKER:', err)
-        console.error('❌ RAW JSON STRING:', jsonString)
-    }
-    } else {
-    console.error('❌ FINAL_JSON marker not found')
-    }
+      console.error('❌ PARSE FAILED:', err)
 
-    // 🔥 FINAL FALLBACK
-    console.warn('🚨 USING FALLBACK RESPONSE')
-
-    return NextResponse.json({
-      summary: 'AI response could not be parsed properly.',
-      risks: []
-    })
+      return NextResponse.json({
+        summary: 'AI response could not be parsed properly.',
+        risks: []
+      })
+    }
 
   } catch (err) {
     console.error('💥 API ERROR:', err)
+
     return NextResponse.json(
       { error: 'Analysis failed' },
       { status: 500 }
