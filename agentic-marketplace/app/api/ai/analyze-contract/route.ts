@@ -3,6 +3,7 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
+import { supabaseServer } from '../../../../lib/supabaseServer'
 
 const execFileAsync = promisify(execFile)
 
@@ -53,6 +54,11 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData()
     const file = formData.get('file') as File
 
+    const dealId = formData.get('dealId') as string
+
+    if (!dealId) {
+      return NextResponse.json({ error: 'Missing dealId' }, { status: 400 })
+    }
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
@@ -186,13 +192,96 @@ ${extractedText}
     // =========================
     try {
       const parsed = JSON.parse(jsonText)
-      return NextResponse.json(parsed)
+
+    // =========================
+    // ☁️ Upload to Supabase Storage
+    // =========================
+    const fileName = `${dealId}-${Date.now()}.pdf`
+
+    const { error: uploadError } = await supabaseServer.storage
+      .from('contracts')
+      .upload(fileName, buffer, {
+        contentType: 'application/pdf'
+      })
+
+    if (uploadError) {
+      console.error('❌ Upload failed:', uploadError)
+      throw new Error('File upload failed')
+    }
+
+    const { data: publicUrlData } = supabaseServer
+      .storage
+      .from('contracts')
+      .getPublicUrl(fileName)
+
+    const fileUrl = publicUrlData.publicUrl
+
+    console.log("🔥 BEFORE INSERT")
+    if (!dealId || typeof dealId !== "string") {
+      return NextResponse.json(
+        { error: "Invalid dealId received" },
+        { status: 400 }
+      )
+    }
+    // =========================
+    // 💾 Save contract to DB
+    // =========================
+    const { data, error: dbError } = await supabaseServer
+      .from('contracts')
+      .insert({
+        deal_id: dealId,
+        file_url: fileUrl,
+        contract_text: extractedText,
+        summary: parsed.summary,
+        risks: parsed.risks
+      })
+      .select()
+
+    console.log("INSERT RESULT:", data)
+    console.log("INSERT ERROR:", dbError)
+
+    if (dbError) {
+      console.error('❌ DB insert failed:', dbError)
+
+      return NextResponse.json({
+        error: "DB insert failed",
+        details: dbError
+      }, { status: 500 })
+    }
+
+    // =========================
+    // 🔄 Update deal status
+    // =========================
+    await supabaseServer
+      .from('deals')
+      .update({ status: 'contract_uploaded' })
+      .eq('id', dealId)
+
+    // =========================
+    // 🧾 Log event
+    // =========================
+    await supabaseServer.from('deal_events').insert({
+      deal_id: dealId,
+      type: 'CONTRACT_UPLOADED',
+      content: `Contract uploaded. ${parsed.risks.length} risks detected.`
+    })
+
+    // =========================
+    // ✅ Return response
+    // =========================
+    return NextResponse.json({
+      dealId,
+      fileUrl,
+      summary: parsed.summary,
+      risks: parsed.risks
+    })
     } catch (err) {
       console.error('❌ PARSE FAILED:', err)
 
       return NextResponse.json({
         summary: 'AI response could not be parsed properly.',
-        risks: []
+        risks: [],
+        contractText: extractedText
       })
     }
 

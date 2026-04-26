@@ -6,12 +6,20 @@ import { supabase } from '@/lib/supabaseClient'
 import DashboardLayout from '@/components/DashboardLayout'
 import ProgressBar from '@/components/ProgressBar'
 
+type DealEvent = {
+  id: string
+  role: 'buyer' | 'supplier'
+  type: 'text' | 'image'
+  content: string
+  created_at: string
+}
+
 export default function ProcessPage() {
   const router = useRouter()
   const { dealId } = useParams()
   const pathname = usePathname()
 
-  const [events, setEvents] = useState<any[]>([])
+  const [events, setEvents] = useState<DealEvent[]>([])
   const [text, setText] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [isBuyer, setIsBuyer] = useState(false)
@@ -52,6 +60,7 @@ export default function ProcessPage() {
         .from('deal_events')
         .select('*')
         .eq('deal_id', dealId)
+        .in('type', ['text', 'image'])
         .order('created_at', { ascending: false })
 
       setEvents(eventsData || [])
@@ -229,7 +238,11 @@ export default function ProcessPage() {
                     {e.type === 'text' && <p>{e.content}</p>}
 
                     {e.type === 'image' && (
-                        <img src={e.content} className="rounded-lg w-full mt-2" />
+                        <img
+                          src={e.content}
+                          alt="Deal evidence upload"
+                          className="rounded-lg w-full mt-2"
+                        />
                     )}
 
                     </div>
