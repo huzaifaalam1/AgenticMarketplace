@@ -228,12 +228,14 @@ ${extractedText}
     // =========================
     const { data, error: dbError } = await supabaseServer
       .from('contracts')
-      .insert({
+      .upsert({
         deal_id: dealId,
         file_url: fileUrl,
         contract_text: extractedText,
         summary: parsed.summary,
         risks: parsed.risks
+      }, {
+        onConflict: 'deal_id'
       })
       .select()
 
@@ -273,7 +275,8 @@ ${extractedText}
       dealId,
       fileUrl,
       summary: parsed.summary,
-      risks: parsed.risks
+      risks: parsed.risks,
+      contractText: extractedText
     })
     } catch (err) {
       console.error('❌ PARSE FAILED:', err)
