@@ -28,6 +28,8 @@ type DealContractData = {
     supplier_user?: { full_name?: string | null } | null
     buyer_user_id?: string | null
     supplier_user_id?: string | null
+    buyer_org_id?: string | null
+    supplier_org_id?: string | null
 }
 
 export default function MakeContract() {
@@ -48,12 +50,15 @@ export default function MakeContract() {
     const [supplierTerms] = useState('')
     const [buyerName, setBuyerName] = useState('Buyer')
     const [supplierName, setSupplierName] = useState('Supplier')
-    const [currentRole, setCurrentRole] = useState<'buyer' | 'supplier'>(
-        'supplier'
-    )
+    const [currentRole, setCurrentRole] = useState<'buyer' | 'supplier' | null>(null)
+
+    const roleLabel = currentRole === 'buyer' ? 'Buyer' : 'Supplier'
+    const canEditContract = currentRole === 'supplier'
 
     const [contractSource, setContractSource] =
         useState<'upload' | 'generate' | 'saved' | null>(null)
+
+    const [dealStatus, setDealStatus] = useState<string | null>(null)
 
     const step = pathname.split('/').pop() ?? ''
 
@@ -73,21 +78,6 @@ export default function MakeContract() {
 
             const { data: { session } } = await supabase.auth.getSession()
 
-            const { data: contractRow, error: contractError } = await supabase
-                .from('contracts')
-                .select('contract_text')
-                .eq('deal_id', dealId)
-                .maybeSingle()
-
-            if (contractError) {
-                console.error('CONTRACT LOAD ERROR:', JSON.stringify(contractError, null, 2))
-            } else if (contractRow?.contract_text) {
-                setContractContent(contractRow.contract_text)
-                setExtractedContractText(contractRow.contract_text)
-                setContractSource('saved')
-                return
-            }
-
             const { data } = await supabase
                 .from('deals')
                 .select(`
@@ -102,6 +92,8 @@ export default function MakeContract() {
 
             const deal = data as DealContractData | null
 
+            setDealStatus((deal as any)?.status ?? null)
+
             const buyer =
                 deal?.buyer_org?.name ||
                 deal?.buyer_user?.full_name ||
@@ -115,10 +107,48 @@ export default function MakeContract() {
             setBuyerName(buyer)
             setSupplierName(supplier)
 
-            if (session?.user.id && deal?.buyer_user_id === session.user.id) {
-                setCurrentRole('buyer')
-            } else {
-                setCurrentRole('supplier')
+            if (session?.user.id) {
+                const userId = session.user.id
+
+                const { data: membership } = await supabase
+                    .from('organization_members')
+                    .select('organization_id')
+                    .eq('user_id', userId)
+                    .maybeSingle()
+
+                const myOrgId = membership?.organization_id || null
+
+                const isBuyer =
+                    deal?.buyer_user_id === userId ||
+                    (!!myOrgId && deal?.buyer_org_id === myOrgId)
+
+                const isSupplier =
+                    deal?.supplier_user_id === userId ||
+                    (!!myOrgId && deal?.supplier_org_id === myOrgId)
+
+                if (isBuyer && !isSupplier) {
+                    setCurrentRole('buyer')
+                } else if (isSupplier && !isBuyer) {
+                    setCurrentRole('supplier')
+                } else if (isBuyer && isSupplier) {
+                    // edge case: same org on both sides; default to buyer
+                    setCurrentRole('buyer')
+                }
+            }
+
+            const { data: contractRow, error: contractError } = await supabase
+                .from('contracts')
+                .select('contract_text')
+                .eq('deal_id', dealId)
+                .maybeSingle()
+
+            if (contractError) {
+                console.error('CONTRACT LOAD ERROR:', JSON.stringify(contractError, null, 2))
+            } else if (contractRow?.contract_text) {
+                setContractContent(contractRow.contract_text)
+                setExtractedContractText(contractRow.contract_text)
+                setContractSource('saved')
+                return
             }
 
             if (deal?.contract_text) {
@@ -320,7 +350,13 @@ export default function MakeContract() {
 
     return (
         <DashboardLayout>
-        <div className="p-10 max-w-3xl mx-auto">
+        <div className="p-10 max-w-3xl mx-auto relative">
+
+            {currentRole && (
+                <div className="absolute top-2 right-2 text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-700 border">
+                    {roleLabel}
+                </div>
+            )}
 
             <ProgressBar stage={currentStage} />
 
@@ -328,11 +364,51 @@ export default function MakeContract() {
 
             <div className="bg-white p-6 rounded shadow space-y-4">
 
+                {currentRole === 'buyer' && contractSource === null && (
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+                        <p className="text-sm text-blue-900">
+                            Waiting for the supplier to upload or create a contract.
+                        </p>
+                    </div>
+                )}
+
+                {currentRole === 'buyer' && contractSource === 'saved' && (
+                    <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
+                        <p className="text-sm text-green-900">
+                            Supplier made a contract. Move to the next page to analyze it and choose to accept or decline.
+                        </p>
+                    </div>
+                )}
+
+                {currentRole === 'supplier' && contractSource === 'saved' && (
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+                        <p className="text-sm text-blue-900">
+                            You’ve offered a contract. Please proceed to the next step for buyer review.
+                        </p>
+                    </div>
+                )}
+
+                {currentRole === 'supplier' && dealStatus === 'contract_accepted' && (
+                    <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
+                        <p className="text-sm text-green-900">
+                            The buyer accepted the contract.
+                        </p>
+                    </div>
+                )}
+
+                {currentRole === 'supplier' && dealStatus === 'contract_declined' && (
+                    <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                        <p className="text-sm text-red-900">
+                            The buyer declined the contract. Please revise and re-upload.
+                        </p>
+                    </div>
+                )}
+
                 {contractSource === null && (
                     <>
                         <button
                             onClick={handleGenerate}
-                            disabled={isGenerating}
+                            disabled={isGenerating || !canEditContract}
                             className="w-full bg-amber-400 px-6 py-3 rounded-lg"
                         >
                             {isGenerating ? 'Generating...' : 'Generate Contract'}
@@ -340,7 +416,13 @@ export default function MakeContract() {
 
                         <div className="text-center text-gray-500">or</div>
 
-                        <FileUpload onFileSelect={handleFileSelect} />
+                        {canEditContract ? (
+                            <FileUpload onFileSelect={handleFileSelect} />
+                        ) : (
+                            <div className="text-center text-gray-500 text-sm">
+                                Only the seller can upload or generate the contract.
+                            </div>
+                        )}
                     </>
                 )}
 
@@ -373,7 +455,7 @@ export default function MakeContract() {
                             {contractSource === 'upload' && (
                                 <button
                                     onClick={handleAnalyse}
-                                    disabled={isAnalyzing}
+                                    disabled={isAnalyzing || !canEditContract}
                                     className="bg-purple-500 text-white px-4 py-2 rounded"
                                 >
                                     {isAnalyzing ? 'Analyzing...' : 'Analyze Contract'}

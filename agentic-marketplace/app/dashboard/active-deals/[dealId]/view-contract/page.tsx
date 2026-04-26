@@ -14,6 +14,11 @@ export default function ViewContract() {
     const [loading, setLoading] = useState(true)
     const [analysisResults, setAnalysisResults] = useState<any>(null)
     const [isAnalyzing, setIsAnalyzing] = useState(false)
+    const [currentRole, setCurrentRole] = useState<'buyer' | 'supplier' | null>(null)
+    const [dealStatus, setDealStatus] = useState<string | null>(null)
+
+    const roleLabel = currentRole === 'buyer' ? 'Buyer' : 'Supplier'
+    const canAnalyzeAndApprove = currentRole === 'buyer'
 
     const step = pathname.split('/').pop() ?? ''
 
@@ -32,6 +37,46 @@ export default function ViewContract() {
             if (!dealId) return
 
             setLoading(true)
+
+            const { data: { session } } = await supabase.auth.getSession()
+
+            const { data: deal } = await supabase
+                .from('deals')
+                .select('buyer_user_id,supplier_user_id,buyer_org_id,supplier_org_id,status')
+                .eq('id', dealId)
+                .maybeSingle()
+
+            setDealStatus((deal as any)?.status ?? null)
+
+            if (session?.user.id) {
+                const userId = session.user.id
+
+                const { data: membership } = await supabase
+                    .from('organization_members')
+                    .select('organization_id')
+                    .eq('user_id', userId)
+                    .maybeSingle()
+
+                const myOrgId = membership?.organization_id || null
+
+                const isBuyer =
+                    deal?.buyer_user_id === userId ||
+                    (!!myOrgId && deal?.buyer_org_id === myOrgId)
+
+                const isSupplier =
+                    deal?.supplier_user_id === userId ||
+                    (!!myOrgId && deal?.supplier_org_id === myOrgId)
+
+                if (isBuyer && !isSupplier) {
+                    setCurrentRole('buyer')
+                } else if (isSupplier && !isBuyer) {
+                    setCurrentRole('supplier')
+                } else if (isBuyer && isSupplier) {
+                    setCurrentRole('buyer')
+                } else {
+                    setCurrentRole('supplier')
+                }
+            }
 
             const { data, error } = await supabase
                 .from('contracts')
@@ -114,23 +159,117 @@ export default function ViewContract() {
         }
     }
 
-    const handleProceedToProcess = () => {
+    const handleProceedToProcess = async () => {
+        if (!dealId) return
+
+        if (!canAnalyzeAndApprove) {
+            alert('Only the buyer can accept the contract.')
+            return
+        }
+
+        const { data: { session } } = await supabase.auth.getSession()
+
+        await supabase.from('deal_events').insert({
+            deal_id: dealId,
+            user_id: session?.user.id,
+            type: 'CONTRACT_ACCEPTED',
+            content: 'Buyer accepted the contract.',
+            role: 'buyer'
+        })
+
+        const { data: updateAccepted, error: updateAcceptedError } = await supabase
+            .from('deals')
+            .update({ status: 'contract_accepted' })
+            .eq('id', dealId)
+            .select()
+
+        console.log('DEAL ACCEPT UPDATE:', updateAccepted, updateAcceptedError)
+
+        if (updateAcceptedError) {
+            alert('Failed to update deal status: ' + updateAcceptedError.message)
+            return
+        }
+
+        setDealStatus('contract_accepted')
+
         router.push(`/dashboard/active-deals/${dealId}/process`)
     }
 
-    const handleSendBackToMakeContract = () => {
+    const handleSendBackToMakeContract = async () => {
+        if (!dealId) return
+
+        if (!canAnalyzeAndApprove) {
+            alert('Only the buyer can decline the contract.')
+            return
+        }
+
+        const { data: { session } } = await supabase.auth.getSession()
+
+        await supabase.from('deal_events').insert({
+            deal_id: dealId,
+            user_id: session?.user.id,
+            type: 'CONTRACT_DECLINED',
+            content: 'Buyer declined the contract.',
+            role: 'buyer'
+        })
+
+        const { data: updateDeclined, error: updateDeclinedError } = await supabase
+            .from('deals')
+            .update({ status: 'contract_declined' })
+            .eq('id', dealId)
+            .select()
+
+        console.log('DEAL DECLINE UPDATE:', updateDeclined, updateDeclinedError)
+
+        if (updateDeclinedError) {
+            alert('Failed to update deal status: ' + updateDeclinedError.message)
+            return
+        }
+
+        setDealStatus('contract_declined')
+
         router.push(`/dashboard/active-deals/${dealId}/make-contract`)
     }
 
     return (
         <DashboardLayout>
-        <div className="p-10 max-w-3xl mx-auto">
+        <div className="p-10 max-w-3xl mx-auto relative">
+
+            {currentRole && (
+                <div className="absolute top-2 right-2 text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-700 border">
+                    {roleLabel}
+                </div>
+            )}
 
             <ProgressBar stage={currentStage} />
 
             <h1 className="text-2xl font-bold mb-6">Review Contract</h1>
 
             <div className="bg-white p-6 rounded shadow space-y-4">
+                {currentRole === 'supplier' && dealStatus === 'contract_accepted' && (
+                    <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
+                        <p className="text-sm text-green-900">
+                            Buyer accepted your contract. Move to the next page to proceed.
+                        </p>
+                    </div>
+                )}
+
+                {currentRole === 'supplier' && dealStatus === 'contract_declined' && (
+                    <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                        <p className="text-sm text-red-900">
+                            Buyer declined your contract. Go back to the previous page to revise and re-upload.
+                        </p>
+                    </div>
+                )}
+
+                {currentRole === 'supplier' && dealStatus !== 'contract_accepted' && dealStatus !== 'contract_declined' && (
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+                        <p className="text-sm text-blue-900">
+                            Waiting for the buyer to analyze and accept or decline this contract.
+                        </p>
+                    </div>
+                )}
+
                 {loading ? (
                     <p className="text-gray-500">Loading contract...</p>
                 ) : contractText ? (
@@ -154,7 +293,7 @@ export default function ViewContract() {
 
                     <button
                         onClick={handleAnalyse}
-                        disabled={isAnalyzing || !contractText}
+                        disabled={isAnalyzing || !contractText || !canAnalyzeAndApprove}
                         className="bg-amber-400 px-4 py-2 rounded hover:bg-amber-500 disabled:bg-gray-400"
                     >
                         {isAnalyzing ? 'Analyzing...' : 'Analyze with AI'}
@@ -205,6 +344,7 @@ export default function ViewContract() {
 
                 <button
                     onClick={handleProceedToProcess}
+                    disabled={!canAnalyzeAndApprove}
                     className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600"
                 >
                     Accept
