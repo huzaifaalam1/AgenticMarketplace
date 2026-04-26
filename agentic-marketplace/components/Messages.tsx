@@ -13,6 +13,7 @@ export default function Messages({ initialChatId }: any) {
   const openChatSeqRef = useRef(0)
   const shouldScrollToBottomRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null)
 
   const [conversations, setConversations] = useState<any[]>([])
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
@@ -113,10 +114,8 @@ export default function Messages({ initialChatId }: any) {
 
     setActiveChat(conversation)
 
-    // ensure we jump to the latest messages once they load
-    shouldScrollToBottomRef.current = true
-
     // clear immediately for smoother transition while loading
+    shouldScrollToBottomRef.current = false
     setMessages([])
 
     setUnreadByConversationId((prev) => {
@@ -150,6 +149,9 @@ export default function Messages({ initialChatId }: any) {
       .order('created_at', { ascending: true })
 
     if (seq !== openChatSeqRef.current) return
+
+    // ensure we jump to the latest message after the list renders
+    shouldScrollToBottomRef.current = true
     setMessages(data || [])
 
     // If this is still the latest open request, allow the scroll effect below to run.
@@ -160,13 +162,18 @@ export default function Messages({ initialChatId }: any) {
     if (!activeChatId) return
     if (!shouldScrollToBottomRef.current) return
 
-    // wait a tick for message list to render
-    const t = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-      shouldScrollToBottomRef.current = false
-    }, 0)
+    const raf = requestAnimationFrame(() => {
+      const el = messagesScrollRef.current
+      if (el) {
+        el.scrollTop = el.scrollHeight
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+      }
 
-    return () => clearTimeout(t)
+      shouldScrollToBottomRef.current = false
+    })
+
+    return () => cancelAnimationFrame(raf)
   }, [activeChatId, messages.length])
 
   const activeConversation =
@@ -559,8 +566,10 @@ export default function Messages({ initialChatId }: any) {
         </div>
 
         {/* messages */}
-        <div className="flex-1 min-h-0 p-4 overflow-y-auto bg-amber-100 space-y-2 overscroll-contain">
-
+        <div
+          ref={messagesScrollRef}
+          className="flex-1 min-h-0 p-4 overflow-y-auto bg-amber-100 space-y-2 overscroll-contain"
+        >
           {activeChat ? (
             messages.map((m, i) => (
               <div
