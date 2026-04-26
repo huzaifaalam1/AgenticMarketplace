@@ -17,13 +17,13 @@ export default function RiskScannerPage() {
   const [loading, setLoading] = useState(false)
   const [summary, setSummary] = useState<string>('')
   const [filter, setFilter] = useState<'All' | 'High' | 'Medium' | 'Low'>('All')
-  const [currentStage, setCurrentStage] = useState(1) // 1-4 for progress stages
+  const [currentStage, setCurrentStage] = useState(1) // 1-5 for progress stages
 
   const handleAnalyze = async () => {
     if (!file) return
     
     setLoading(true)
-    setCurrentStage(2) // Ensure we're in Process stage
+    setCurrentStage(3) // Move to Process stage when analysis starts
     
     // Simulate AI analysis
     setTimeout(() => {
@@ -53,15 +53,12 @@ export default function RiskScannerPage() {
       setRisks(mockRisks)
       setSummary(mockSummary)
       setLoading(false)
-      setCurrentStage(4) // Move to Summary stage when analysis is complete
+      setCurrentStage(4) // Move to AI Summary stage when analysis is complete
       
-      // Simulate deal completion after a delay
+      // Simulate moving to final stage after a delay
       setTimeout(() => {
-        setCurrentStage(3) // Move to Complete stage
-        setTimeout(() => {
-          setCurrentStage(4) // Finally move to Summary stage
-        }, 1000)
-      }, 1000)
+        setCurrentStage(5) // Move to Disputes stage
+      }, 1500)
     }, 2000)
   }
 
@@ -135,16 +132,17 @@ export default function RiskScannerPage() {
               <div className="absolute top-5 left-0 right-0 h-1 bg-gray-300"></div>
               <div 
                 className="absolute top-5 left-0 h-1 bg-amber-400 transition-all duration-500"
-                style={{ width: `${((currentStage - 1) / 3) * 100}%` }}
+                style={{ width: `${((currentStage - 1) / 4) * 100}%` }}
               ></div>
               
               {/* Checkpoints */}
               <div className="relative flex justify-between">
                 {[
-                  { stage: 1, label: 'Contract', description: 'Upload & Review' },
-                  { stage: 2, label: 'Process', description: 'AI Analysis' },
-                  { stage: 3, label: 'Complete', description: 'Deal Finalized' },
-                  { stage: 4, label: 'Summary', description: 'Report Generated' }
+                  { stage: 1, label: 'Make Contract', description: 'Supplier' },
+                  { stage: 2, label: 'View Contract', description: 'Buyer' },
+                  { stage: 3, label: 'Process', description: 'Document & Track' },
+                  { stage: 4, label: 'AI Summary', description: 'Deal Overview' },
+                  { stage: 5, label: 'Disputes', description: 'Resolution & Finalize' }
                 ].map((checkpoint) => (
                   <div key={checkpoint.stage} className="flex flex-col items-center">
                     {/* Circle */}
@@ -300,6 +298,40 @@ export default function RiskScannerPage() {
                   </div>
                 </div>
               ))}
+            
+            {/* Disputes Section - Only show when in stage 5 */}
+            {currentStage === 5 && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-xl font-semibold mb-4">Dispute Resolution</h3>
+                <div className="space-y-4">
+                  <div className="border-l-4 border-amber-400 pl-4">
+                    <h4 className="font-medium text-amber-600">No Active Disputes</h4>
+                    <p className="text-gray-600 text-sm mt-1">
+                      This contract has been reviewed and shows no immediate disputes. All parties are in agreement with the terms.
+                    </p>
+                  </div>
+                  
+                  <div className="bg-amber-50 p-4 rounded-lg">
+                    <h5 className="font-medium mb-2">Recommended Actions:</h5>
+                    <ul className="text-sm text-gray-700 space-y-1">
+                      <li>• Monitor payment terms compliance</li>
+                      <li>• Schedule quarterly review meetings</li>
+                      <li>• Maintain open communication channels</li>
+                      <li>• Document any changes to the agreement</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="flex gap-3 mt-4">
+                    <button className="bg-amber-400 hover:bg-amber-500 text-white px-4 py-2 rounded-lg">
+                      Create Escalation Plan
+                    </button>
+                    <button className="border border-amber-400 text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-lg">
+                      Contact Mediator
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
