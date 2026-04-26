@@ -266,6 +266,13 @@ export default function ViewContract() {
                         <p className="text-sm text-red-900">
                             Buyer declined your contract. Go back to the previous page to revise and re-upload.
                         </p>
+
+                        <button
+                            onClick={() => router.push(`/dashboard/active-deals/${dealId}/process`)}
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg"
+                            >
+                            New Contract
+                        </button>
                     </div>
                 )}
 
