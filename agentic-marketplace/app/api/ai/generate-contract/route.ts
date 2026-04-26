@@ -1,46 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // =========================
-// 🧠 CLEAN OUTPUT (LIGHT + SAFE)
+// 🧠 CLEAN OUTPUT (MINIMAL)
 // =========================
 function cleanGeneratedContract(text: string): string {
-  const matches: number[] = []
+    const matches: number[] = []
 
-  let idx = text.indexOf('SERVICE AGREEMENT')
-  while (idx !== -1) {
-    matches.push(idx)
-    idx = text.indexOf('SERVICE AGREEMENT', idx + 1)
-  }
+    let idx = text.indexOf('SERVICE AGREEMENT')
+    while (idx !== -1) {
+        matches.push(idx)
+        idx = text.indexOf('SERVICE AGREEMENT', idx + 1)
+    }
 
-  if (matches.length === 0) {
-    return text.trim()
-  }
+    if (matches.length === 0) return text.trim()
 
-  // 👇 key logic
-  const targetIndex =
-    matches.length >= 2
-      ? matches[matches.length - 2] // second last
-      : matches[0]
+    // 🔥 try from LAST occurrence backwards
+    for (let i = matches.length - 1; i >= 0; i--) {
+        const start = matches[i]
+        let contract = text.slice(start)
 
-  let contract = text.slice(targetIndex)
+        // cut off trailing garbage
+        const badMarkers = [
+        '*Final',
+        '*Check',
+        '*Constraint',
+        '*Refining',
+        '*Wait'
+        ]
 
-  // optional cleanup for trailing junk
-  const badMarkers = [
-    '*Word Count',
-    '*Constraint',
-    '*Self-Correction',
-    '*Final',
-    '*Wait'
-  ]
+        for (const marker of badMarkers) {
+        const cut = contract.indexOf(marker)
+        if (cut !== -1) {
+            contract = contract.slice(0, cut)
+        }
+    }
 
-  for (const marker of badMarkers) {
-    const cut = contract.indexOf(marker)
-    if (cut !== -1) {
-      contract = contract.slice(0, cut)
+    contract = contract.trim()
+
+    // ✅ VALID CONTRACT CHECK
+    // ✅ VALID CONTRACT CHECK
+    if (
+        contract.includes('SCOPE OF WORK') &&
+        contract.includes('LIABILITY') &&
+        contract.length > 800
+    ) {
+    // trim after last signature Date
+    const lastDateIndex = contract.lastIndexOf('Date:')
+
+    if (lastDateIndex !== -1) {
+        const endOfLine = contract.indexOf('\n', lastDateIndex)
+
+        if (endOfLine !== -1) {
+        contract = contract.slice(0, endOfLine)
+        } else {
+        contract = contract.slice(0, lastDateIndex + 5)
+        }
+    }
+
+    return contract.trim()
     }
   }
 
-  return contract.trim()
+  // fallback
+  return text.trim()
 }
 
 export async function POST(req: NextRequest) {
@@ -48,48 +70,33 @@ export async function POST(req: NextRequest) {
     const { buyer, supplier, terms, context } = await req.json()
 
     const prompt = `
-Write a professional SERVICE AGREEMENT.
+Return ONLY a complete SERVICE AGREEMENT.
 
-Output ONLY the contract.
-
-Begin EXACTLY with:
+Start EXACTLY with:
 SERVICE AGREEMENT
 
-Do not explain.
-Do not plan.
-Do not describe steps.
-Do not include notes.
+Do not include explanations, notes, reasoning, checks, or planning.
 
-Requirements:
-- Length: 600–800 words
-- Formal legal tone
-- Include sections:
-  SCOPE OF WORK
-  DELIVERY AND TIMELINE
-  SUPPLIER TERMS
-  OBLIGATIONS
-  TERMINATION
-  LIABILITY
-  DISPUTE RESOLUTION
-  CONFIDENTIALITY
-  GOVERNING LAW
-  SIGNATURES
+Write a formal legal contract between:
 
-Constraints:
-- No payment terms
-- No bullet points
-
-Parties:
 Buyer: ${buyer}
 Supplier: ${supplier}
 
-Supplier Terms:
-${terms || 'Standard professional service terms'}
+Include sections:
+SCOPE OF WORK
+DELIVERY AND TIMELINE
+SUPPLIER TERMS
+OBLIGATIONS
+TERMINATION
+LIABILITY
+DISPUTE RESOLUTION
+CONFIDENTIALITY
+GOVERNING LAW
+SIGNATURES
 
-Context:
-${context || 'Active deal'}
-
-Your response must be a finished contract, not notes or drafts.
+No bullet points.
+No commentary.
+Only the contract text.
 `
 
     const res = await fetch(
@@ -100,16 +107,16 @@ Your response must be a finished contract, not notes or drafts.
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.2,
+            temperature: 0.1,
             topK: 1,
             topP: 1,
             maxOutputTokens: 4096,
             stopSequences: [
-              '*Constraint',
-              '*Word Count',
-              '*Self-Correction',
-              '*Refining',
-              '*Wait'
+              '*',
+              'Constraint',
+              'Check',
+              'Drafting',
+              'Word Count'
             ]
           }
         })
@@ -128,9 +135,6 @@ Your response must be a finished contract, not notes or drafts.
 
     console.log('\n🧠 RAW CONTRACT:\n', text)
 
-    // =========================
-    // 🔥 CLEAN OUTPUT
-    // =========================
     const cleanedContract = cleanGeneratedContract(text)
 
     console.log('\n🧼 CLEANED CONTRACT:\n', cleanedContract)
