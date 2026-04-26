@@ -54,15 +54,104 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
 
   const unreadCount = notifications.filter(n => !n.read).length
 
-  const handleDecision = async (id: string, decision: 'accepted' | 'rejected') => {
-    await supabase
+  const handleDecision = async (
+    notificationId: string,
+    decision: 'accepted' | 'rejected'
+  ) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+
+    const { data: notification, error: fetchError } = await supabase
       .from('notifications')
-      .update({ status: decision })
-      .eq('id', id)
+      .select('*')
+      .eq('id', notificationId)
+      .single()
+
+    if (fetchError || !notification) {
+      console.error('NOTIFICATION FETCH ERROR:', fetchError)
+      return
+    }
+
+    const { data: updatedNotification, error: updateError } = await supabase
+      .from('notifications')
+      .update({
+        status: decision,
+        read: true
+      })
+      .eq('id', notificationId)
+      .select()
+      .single()
+
+    if (updateError || !updatedNotification) {
+      console.error('UPDATE ERROR:', updateError)
+      return
+    }
+
+    if (decision === 'accepted') {
+      const { data: existingDeal } = await supabase
+        .from('deals')
+        .select('id')
+        .or(
+          `listing_id.eq.${notification.related_listing_id},request_id.eq.${notification.related_listing_id}`
+        )
+        .maybeSingle()
+
+      if (!existingDeal) {
+        const { data: membership } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle()
+
+        const receiverOrgId = membership?.organization_id || null
+
+        const { data: supplierCheck } = await supabase
+          .from('supplier_listings')
+          .select('id')
+          .eq('id', notification.related_listing_id)
+          .maybeSingle()
+
+        const isSupplierFlow = !!supplierCheck
+
+        let payload: any = {
+          status: 'active'
+        }
+
+        if (isSupplierFlow) {
+          payload = {
+            ...payload,
+            listing_id: notification.related_listing_id,
+            buyer_org_id: notification.organization_id || null,
+            supplier_org_id: receiverOrgId || null,
+            buyer_user_id: notification.sender_id,
+            supplier_user_id: session.user.id
+          }
+        } else {
+          payload = {
+            ...payload,
+            request_id: notification.related_listing_id,
+            supplier_org_id: notification.organization_id || null,
+            buyer_org_id: receiverOrgId || null,
+            supplier_user_id: notification.sender_id,
+            buyer_user_id: session.user.id
+          }
+        }
+
+        const { error: dealError } = await supabase
+          .from('deals')
+          .insert(payload)
+
+        if (dealError) {
+          console.error('DEAL INSERT ERROR:', dealError)
+        }
+      }
+    }
 
     setNotifications(prev =>
       prev.map(n =>
-        n.id === id ? { ...n, status: decision } : n
+        n.id === notificationId
+          ? { ...n, ...updatedNotification }
+          : n
       )
     )
   }
@@ -205,7 +294,6 @@ export default function Header({ displayName, accountType, onMenuClick }: any) {
                           </div>
                         )}
 
-                        {/* STATUS DISPLAY */}
                         {notification.type === 'deal_invite' && notification.status !== 'pending' && (
                           <span className="text-xs text-gray-500">
                             {notification.status === 'accepted'

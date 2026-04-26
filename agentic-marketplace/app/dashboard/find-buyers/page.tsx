@@ -4,11 +4,8 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import DashboardLayout from '@/components/DashboardLayout'
 import DealModal from '@/components/DealModal'
-import { useRouter } from 'next/navigation'
 
 export default function FindBuyers() {
-  const router = useRouter()
-
   const [buyers, setBuyers] = useState<any[]>([])
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState("")
@@ -20,72 +17,6 @@ export default function FindBuyers() {
   const [sentInvites, setSentInvites] = useState<string[]>([])
 
   const filterRef = useRef<HTMLDivElement>(null)
-
-  // ✅ CHAT CREATION + REDIRECT
-  const startChat = async (targetUserId: string) => {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError) {
-      console.error('GET SESSION ERROR:', sessionError)
-      alert(sessionError.message)
-      return
-    }
-
-    const currentUserId = session?.user?.id
-    if (!currentUserId) {
-      alert('Not authenticated')
-      return
-    }
-
-    if (!targetUserId) {
-      alert('Could not determine the recipient user id for this listing')
-      return
-    }
-
-    // find existing chat (bidirectional)
-    const { data: existing, error: existingError } = await supabase
-      .from('conversations')
-      .select('*')
-      .or(
-        `and(user1_id.eq.${currentUserId},user2_id.eq.${targetUserId}),and(user1_id.eq.${targetUserId},user2_id.eq.${currentUserId})`
-      )
-      .maybeSingle()
-
-    if (existingError) {
-      console.error('FIND EXISTING CONVERSATION ERROR:', existingError)
-      alert(existingError.message)
-      return
-    }
-
-    let chatId = existing?.id
-
-    // create if not exists
-    if (!existing) {
-      const { data, error: createError } = await supabase
-        .from('conversations')
-        .insert({
-          user1_id: currentUserId,
-          user2_id: targetUserId
-        })
-        .select()
-        .single()
-
-      if (createError) {
-        console.error('CREATE CONVERSATION ERROR:', createError)
-        alert(createError.message)
-        return
-      }
-
-      chatId = data?.id
-    }
-
-    if (!chatId) {
-      alert('Failed to create or find a conversation')
-      return
-    }
-
-    // 🔥 THIS IS THE IMPORTANT PART
-    router.push(`/dashboard?chat=${chatId}`)
-  }
 
   useEffect(() => {
     const loadBuyers = async () => {
@@ -100,13 +31,13 @@ export default function FindBuyers() {
           budget_max,
           quantity,
           country,
+          organization_id,
           user_id,
           organizations (
             name,
             trust_score,
             deals_completed,
-            city,
-            owner_id
+            city
           )
         `)
 
@@ -116,6 +47,45 @@ export default function FindBuyers() {
 
       const { data } = await query
       if (data) setBuyers(data)
+    }
+
+    const loadSentInvites = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', session?.user.id)
+        .maybeSingle()
+
+      const orgId = membership?.organization_id
+      console.log('ORG ID:', orgId)
+
+      let data = null
+
+      if (orgId) {
+        const res = await supabase
+          .from('notifications')
+          .select('related_listing_id')
+          .eq('type', 'deal_invite')
+          .eq('organization_id', orgId)
+
+        data = res.data
+        console.log('ORG QUERY RESULT:', data)
+      } else {
+        const res = await supabase
+          .from('notifications')
+          .select('related_listing_id')
+          .eq('type', 'deal_invite')
+          .eq('sender_id', session.user.id)
+
+        data = res.data
+        console.log('USER QUERY RESULT:', data)
+      }
+
+      if (data) {
+        setSentInvites(data.map(n => n.related_listing_id))
+      }
     }
 
     const loadFilters = async () => {
@@ -133,21 +103,6 @@ export default function FindBuyers() {
 
       if (countryData) {
         setCountries([...new Set(countryData.map(c => c.country))])
-      }
-    }
-
-    const loadSentInvites = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const { data } = await supabase
-        .from('notifications')
-        .select('related_listing_id')
-        .eq('type', 'deal_invite')
-        .eq('sender_id', session.user.id)
-
-      if (data) {
-        setSentInvites(data.map(n => n.related_listing_id))
       }
     }
 
@@ -173,7 +128,6 @@ export default function FindBuyers() {
       <h1 className="text-3xl font-bold mb-10">Find Buyers</h1>
 
       <div className="flex gap-4 mb-8 items-center">
-
         <input
           type="text"
           placeholder="Search products..."
@@ -225,12 +179,8 @@ export default function FindBuyers() {
       </div>
 
       <div className="grid grid-cols-3 gap-6">
-
         {buyers.map((buyer) => (
-          <div
-            key={buyer.id}
-            className="bg-amber-100 rounded-3xl shadow-md p-6 flex flex-col gap-3 hover:scale-[1.02] transition"
-          >
+          <div key={buyer.id} className="bg-amber-100 rounded-3xl shadow-md p-6 flex flex-col gap-3 hover:scale-[1.02] transition">
 
             <h2 className="text-xl font-semibold">{buyer.title}</h2>
             <p className="text-sm text-gray-700">{buyer.description}</p>
@@ -253,41 +203,29 @@ export default function FindBuyers() {
               ⭐ Trust: {buyer.organizations?.trust_score}
             </div>
 
-            {/* BUTTONS */}
-            <div className="mt-4 flex gap-2">
-
-              {sentInvites.includes(buyer.id) ? (
-                <button className="flex-1 bg-gray-300 px-3 py-2 rounded-xl text-sm">
-                  Offer Sent
-                </button>
-              ) : (
-                <button
-                  onClick={() => setSelectedBuyer(buyer)}
-                  className="flex-1 bg-amber-400 hover:bg-amber-500 px-3 py-2 rounded-xl text-sm"
-                >
-                  Offer Supply
-                </button>
-              )}
-
-              {/* MESSAGE */}
+            {sentInvites.includes(buyer.id) ? (
               <button
-                onClick={() => startChat(buyer.user_id || buyer.organizations?.owner_id)}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-xl text-sm"
+                disabled
+                className="mt-4 bg-gray-300 px-4 py-2 rounded-xl cursor-not-allowed"
               >
-                Message
+                Offer Sent
               </button>
-
-            </div>
-
+            ) : (
+              <button
+                onClick={() => setSelectedBuyer(buyer)}
+                className="mt-4 bg-amber-400 hover:bg-amber-500 px-4 py-2 rounded-xl"
+              >
+                Offer Supply
+              </button>
+            )}
           </div>
         ))}
 
         <DealModal
           open={!!selectedBuyer}
-          supplier={selectedBuyer}
+          supplier={selectedBuyer}   // reuse prop name, don't change modal
           onClose={() => setSelectedBuyer(null)}
         />
-
       </div>
 
     </DashboardLayout>

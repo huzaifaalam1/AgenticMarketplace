@@ -169,7 +169,6 @@ export default function Messages({ initialChatId }: any) {
       } else {
         messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
       }
-
       shouldScrollToBottomRef.current = false
     })
 
@@ -566,10 +565,8 @@ export default function Messages({ initialChatId }: any) {
         </div>
 
         {/* messages */}
-        <div
-          ref={messagesScrollRef}
-          className="flex-1 min-h-0 p-4 overflow-y-auto bg-amber-100 space-y-2 overscroll-contain"
-        >
+        <div ref={messagesScrollRef} className="flex-1 min-h-0 p-4 overflow-y-auto bg-amber-100 space-y-2 overscroll-contain">
+
           {activeChat ? (
             messages.map((m, i) => (
               <div

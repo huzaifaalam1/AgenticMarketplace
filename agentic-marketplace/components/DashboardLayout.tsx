@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: any) {
         return
       }
 
-      // 🔹 GET PROFILE
+      // GET PROFILE
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -65,7 +65,7 @@ export default function DashboardLayout({ children }: any) {
           ownerId = membership.organization_id
           ownerType = 'organization'
         } else {
-          console.log('❌ NO MEMBERSHIP FOUND FOR USER')
+          console.log(' NO MEMBERSHIP FOUND FOR USER')
         }
       }
 
@@ -205,10 +205,11 @@ export default function DashboardLayout({ children }: any) {
 
         </div>
       ) : (
-        <div className="p-8">
+        <div className="p-8 flex-1">
           {children}
         </div>
       )}
+
     </div>
   )
 }
