@@ -18,8 +18,37 @@ export default function FindBuyers() {
   const [showFilters, setShowFilters] = useState(false)
   const [selectedBuyer, setSelectedBuyer] = useState<any>(null)
   const [sentInvites, setSentInvites] = useState<string[]>([])
+  const [profileMap, setProfileMap] = useState<Record<string, any>>({})
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
 
   const filterRef = useRef<HTMLDivElement>(null)
+
+  const hydrateProfilesForRequests = async (rows: any[]) => {
+    const ids = [...new Set((rows || []).map((r) => r?.user_id).filter(Boolean))]
+    if (ids.length === 0) return
+
+    setProfileMap((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        if (!(id in next)) next[id] = null
+      }
+      return next
+    })
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, display_name, full_name, trust_score, deals_completed, city')
+      .in('id', ids)
+
+    if (!data) return
+
+    setProfileMap((prev) => {
+      const next = { ...prev }
+      for (const p of data) next[p.id] = p
+      return next
+    })
+  }
 
   const startChat = async (targetUserId: string | null | undefined) => {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -111,7 +140,10 @@ export default function FindBuyers() {
       if (country) query = query.eq('country', country)
 
       const { data } = await query
-      if (data) setBuyers(data)
+      if (data) {
+        setBuyers(data)
+        hydrateProfilesForRequests(data)
+      }
     }
 
     const loadSentInvites = async () => {
@@ -163,11 +195,15 @@ export default function FindBuyers() {
         .select('country')
 
       if (categoryData) {
-        setCategories([...new Set(categoryData.map(c => c.product_category))])
+        setCategories([
+          ...new Set(categoryData.map((c) => c.product_category).filter(Boolean))
+        ] as string[])
       }
 
       if (countryData) {
-        setCountries([...new Set(countryData.map(c => c.country))])
+        setCountries([
+          ...new Set(countryData.map((c) => c.country).filter(Boolean))
+        ] as string[])
       }
     }
 
@@ -175,6 +211,25 @@ export default function FindBuyers() {
     loadFilters()
     loadSentInvites()
   }, [search, category, country])
+
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        setCurrentUserId(session.user.id)
+        
+        const { data: membership } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle()
+        
+        setCurrentOrgId(membership?.organization_id || null)
+      }
+    }
+    
+    loadCurrentUser()
+  }, [])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -250,11 +305,13 @@ export default function FindBuyers() {
             <h2 className="text-xl font-semibold">{buyer.title}</h2>
             <p className="text-sm text-gray-700">{buyer.description}</p>
 
-            <div className="text-sm">Buyer: {buyer.organizations?.name}</div>
+            <div className="text-sm">
+              Buyer: {buyer.organizations?.name || (buyer.user_id ? (profileMap[buyer.user_id]?.display_name || profileMap[buyer.user_id]?.full_name) : null) || 'Unknown'}
+            </div>
 
             <div className="text-sm">
-              Location: {buyer.organizations?.city
-                ? `${buyer.organizations.city}, ${buyer.country}`
+              Location: {(buyer.organizations?.city || (buyer.user_id ? profileMap[buyer.user_id]?.city : null))
+                ? `${buyer.organizations?.city || (buyer.user_id ? profileMap[buyer.user_id]?.city : '')}, ${buyer.country}`
                 : buyer.country}
             </div>
 
@@ -265,7 +322,7 @@ export default function FindBuyers() {
             <div className="text-sm">Quantity: {buyer.quantity}</div>
 
             <div className="mt-3 font-medium">
-              ⭐ Trust: {buyer.organizations?.trust_score}
+              ⭐ Trust: {buyer.organizations?.trust_score ?? (buyer.user_id ? profileMap[buyer.user_id]?.trust_score : null) ?? 0}
             </div>
 
             <div className="mt-4 flex gap-2">
@@ -275,6 +332,13 @@ export default function FindBuyers() {
                   className="flex-1 bg-gray-300 px-3 py-2 rounded-xl text-sm cursor-not-allowed"
                 >
                   Offer Sent
+                </button>
+              ) : (currentUserId && buyer.user_id === currentUserId) || (currentOrgId && buyer.organization_id === currentOrgId) ? (
+                <button
+                  disabled
+                  className="flex-1 bg-gray-300 px-3 py-2 rounded-xl text-sm cursor-not-allowed"
+                >
+                  Your Request
                 </button>
               ) : (
                 <button

@@ -389,8 +389,8 @@ export default function MakeContract() {
                 )}
 
                 {currentRole === 'supplier' && dealStatus === 'contract_accepted' && (
-                    <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
-                        <p className="text-sm text-green-900">
+                    <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded mb-4">
+                        <p className="text-sm text-green-900 font-medium">
                             The buyer accepted the contract.
                         </p>
                     </div>

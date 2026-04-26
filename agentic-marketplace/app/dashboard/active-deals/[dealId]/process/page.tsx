@@ -86,8 +86,14 @@ export default function ProcessPage() {
 
     let imageUrl = null
 
+    // 🔹 upload image if exists
     if (file) {
-      const filePath = `${dealId}/${Date.now()}-${file.name}`
+      // Sanitize filename: remove special characters, spaces, and make it shorter
+      const fileExt = file.name.split('.').pop()
+      const timestamp = Date.now().toString(36)
+      const randomStr = Math.random().toString(36).substring(2, 8)
+      const sanitizedFileName = `${timestamp}-${randomStr}.${fileExt}`
+      const filePath = `${dealId}/${sanitizedFileName}`
 
       const { error } = await supabase.storage
         .from('deal-evidence')

@@ -247,32 +247,18 @@ export default function ViewContract() {
 
             <div className="bg-white p-6 rounded shadow space-y-4">
                 {currentRole === 'supplier' && dealStatus === 'contract_accepted' && (
-                    <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
-                        <p className="text-sm text-green-900">
-                            Buyer accepted your contract. Move to the next page to proceed.
+                    <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded mb-4">
+                        <p className="text-sm text-green-900 font-medium">
+                            Buyer accepted your contract.
                         </p>
-
-                        <button
-                            onClick={() => router.push(`/dashboard/active-deals/${dealId}/process`)}
-                            className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg"
-                            >
-                            Go to Process
-                        </button>
                     </div>
                 )}
 
                 {currentRole === 'supplier' && dealStatus === 'contract_declined' && (
-                    <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
-                        <p className="text-sm text-red-900">
-                            Buyer declined your contract. Go back to the previous page to revise and re-upload.
+                    <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded mb-4">
+                        <p className="text-sm text-red-900 font-medium">
+                            Buyer declined your contract.
                         </p>
-
-                        <button
-                            onClick={() => router.push(`/dashboard/active-deals/${dealId}/make-contract`)}
-                            className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg"
-                            >
-                            New Contract
-                        </button>
                     </div>
                 )}
 
@@ -312,6 +298,24 @@ export default function ViewContract() {
                     >
                         {isAnalyzing ? 'Analyzing...' : 'Analyze with AI'}
                     </button>
+
+                    {currentRole === 'supplier' && dealStatus === 'contract_accepted' && (
+                        <button
+                            onClick={() => router.push(`/dashboard/active-deals/${dealId}/process`)}
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                        >
+                            Go to Process
+                        </button>
+                    )}
+
+                    {currentRole === 'supplier' && dealStatus === 'contract_declined' && (
+                        <button
+                            onClick={() => router.push(`/dashboard/active-deals/${dealId}/make-contract`)}
+                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                        >
+                            New Contract
+                        </button>
+                    )}
                 </div>
 
                 <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded">

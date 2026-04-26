@@ -8,6 +8,8 @@ import DashboardLayout from '@/components/DashboardLayout'
 export default function ActiveDeals() {
   const [deals, setDeals] = useState<any[]>([])
   const [search, setSearch] = useState("")
+  const [session, setSession] = useState<any>(null)
+  const [orgId, setOrgId] = useState<string | null>(null)
   const filterRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -16,6 +18,8 @@ export default function ActiveDeals() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
+      setSession(session)
+
       const { data: membership } = await supabase
         .from('organization_members')
         .select('organization_id')
@@ -23,17 +27,26 @@ export default function ActiveDeals() {
         .maybeSingle()
 
       const orgId = membership?.organization_id
+      setOrgId(orgId)
 
       let query = supabase
         .from('deals')
-        .select(`*, buyer_org:buyer_org_id ( name, trust_score, city ), supplier_org:supplier_org_id ( name, trust_score, city ), buyer_user:buyer_user_id ( full_name ), supplier_user:supplier_user_id ( full_name ), supplier_listings:listing_id ( title, country ), buyer_requests:request_id ( title, country )`)
+        .select(`*, buyer_org:buyer_org_id ( name, trust_score, city ), supplier_org:supplier_org_id ( name, trust_score, city ), buyer_user:buyer_user_id ( full_name, trust_score, city ), supplier_user:supplier_user_id ( full_name, trust_score, city ), supplier_listings:listing_id ( title, country ), buyer_requests:request_id ( title, country )`)
         .order('created_at', { ascending: false })
 
+      // Check both user_id and org_id fields to ensure both sender and receiver can see the deal
+      const conditions = [
+        `buyer_user_id.eq.${session.user.id}`,
+        `supplier_user_id.eq.${session.user.id}`
+      ]
+      
+      // Also check org fields if current user is in an org
       if (orgId) {
-        query = query.or(`buyer_org_id.eq.${orgId},supplier_org_id.eq.${orgId}`)
-      } else {
-        query = query.or(`buyer_user_id.eq.${session.user.id},supplier_user_id.eq.${session.user.id}`)
+        conditions.push(`buyer_org_id.eq.${orgId}`)
+        conditions.push(`supplier_org_id.eq.${orgId}`)
       }
+      
+      query = query.or(conditions.join(','))
 
       const { data, error } = await query
 
@@ -87,23 +100,37 @@ export default function ActiveDeals() {
 
             const title = listing?.title || request?.title || 'Deal'
 
-            // 🔥 determine partner correctly
+            // 🔥 determine partner correctly (show the OTHER party, not current user)
             let partnerName = 'Unknown'
             let trust = '—'
             let location = '—'
 
-            if (deal.supplier_org) {
-              partnerName = deal.supplier_org.name
-              trust = deal.supplier_org.trust_score ?? '—'
-              location = deal.supplier_org.city || '—'
-            } else if (deal.buyer_org) {
-              partnerName = deal.buyer_org.name
-              trust = deal.buyer_org.trust_score ?? '—'
-              location = deal.buyer_org.city || '—'
-            } else if (deal.supplier_user) {
-              partnerName = deal.supplier_user.full_name
-            } else if (deal.buyer_user) {
-              partnerName = deal.buyer_user.full_name
+            // Determine if current user is buyer or supplier
+            const isBuyer = deal.buyer_user_id === session.user.id || deal.buyer_org_id === orgId
+            const isSupplier = deal.supplier_user_id === session.user.id || deal.supplier_org_id === orgId
+
+            if (isBuyer) {
+              // Current user is buyer, show supplier info
+              if (deal.supplier_org) {
+                partnerName = deal.supplier_org.name
+                trust = deal.supplier_org.trust_score ?? '—'
+                location = deal.supplier_org.city || '—'
+              } else if (deal.supplier_user) {
+                partnerName = deal.supplier_user.full_name
+                trust = deal.supplier_user.trust_score ?? '—'
+                location = deal.supplier_user.city || '—'
+              }
+            } else if (isSupplier) {
+              // Current user is supplier, show buyer info
+              if (deal.buyer_org) {
+                partnerName = deal.buyer_org.name
+                trust = deal.buyer_org.trust_score ?? '—'
+                location = deal.buyer_org.city || '—'
+              } else if (deal.buyer_user) {
+                partnerName = deal.buyer_user.full_name
+                trust = deal.buyer_user.trust_score ?? '—'
+                location = deal.buyer_user.city || '—'
+              }
             }
 
             return (
@@ -127,7 +154,7 @@ export default function ActiveDeals() {
                 </div>
 
                 <div className="text-sm">
-                  ⭐ Trust: {trust}
+                  ⭐ Trust: {trust !== '—' ? `${trust}/5` : trust}
                 </div>
 
                 <div className="text-sm">
