@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const { events, contract } = await req.json()
 
     const prompt = `
-You are a strict JSON generator.
+You are a strict JSON generator analyzing a deal execution.
 
 DO NOT:
 - explain anything
@@ -21,20 +21,27 @@ ONLY return a valid JSON object.
 FORMAT EXACTLY:
 
 {
-  "supplier_score": number,
-  "buyer_score": number,
+  "supplier_score": number (0-100),
+  "buyer_score": number (0-100),
   "verdict": "fulfilled" | "partial" | "failed",
   "issues": string[],
-  "escrow_release": string,
+  "escrow_release": string (explain decision),
   "summary": string
 }
 
+ANALYSIS INSTRUCTIONS:
+- Review the contract text, summary, and risks to understand obligations
+- Analyze timeline events (text updates and image evidence) from both buyer and supplier
+- Score each party based on contract compliance and communication
+- Identify any issues or discrepancies
+- Determine if escrow should be released (fulfilled), partially released (partial), or held (failed)
+
 Now generate the JSON for:
 
-Contract:
+Contract Data:
 ${JSON.stringify(contract)}
 
-Events:
+Timeline Events:
 ${JSON.stringify(events)}
 `
 
