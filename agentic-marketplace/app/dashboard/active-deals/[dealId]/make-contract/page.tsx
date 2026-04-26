@@ -7,6 +7,29 @@ import DashboardLayout from '@/components/DashboardLayout'
 import ProgressBar from '@/components/ProgressBar'
 import FileUpload from '../../components/FileUpload'
 
+type ContractRisk = {
+    category: string
+    riskLevel: string
+    clause: string
+    reason: string
+}
+
+type ContractAnalysis = {
+    summary?: string
+    risks?: ContractRisk[]
+    contractText?: string
+}
+
+type DealContractData = {
+    contract_text?: string | null
+    buyer_org?: { name?: string | null } | null
+    supplier_org?: { name?: string | null } | null
+    buyer_user?: { full_name?: string | null } | null
+    supplier_user?: { full_name?: string | null } | null
+    buyer_user_id?: string | null
+    supplier_user_id?: string | null
+}
+
 export default function MakeContract() {
     const router = useRouter()
     const { dealId } = useParams()
@@ -14,17 +37,23 @@ export default function MakeContract() {
 
     const [uploadedFile, setUploadedFile] = useState<File | null>(null)
     const [contractContent, setContractContent] = useState('')
-    const [analysisResults, setAnalysisResults] = useState<any>(null)
+    const [extractedContractText, setExtractedContractText] = useState('')
+    const [analysisResults, setAnalysisResults] =
+        useState<ContractAnalysis | null>(null)
 
     const [isAnalyzing, setIsAnalyzing] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
 
-    const [supplierTerms, setSupplierTerms] = useState('')
+    const [supplierTerms] = useState('')
     const [buyerName, setBuyerName] = useState('Buyer')
     const [supplierName, setSupplierName] = useState('Supplier')
+    const [currentRole, setCurrentRole] = useState<'buyer' | 'supplier'>(
+        'supplier'
+    )
 
     const [contractSource, setContractSource] =
-        useState<'upload' | 'generate' | null>(null)
+        useState<'upload' | 'generate' | 'saved' | null>(null)
 
     const step = pathname.split('/').pop() ?? ''
 
@@ -42,6 +71,23 @@ export default function MakeContract() {
         async function loadDeal() {
             if (!dealId) return
 
+            const { data: { session } } = await supabase.auth.getSession()
+
+            const { data: contractRow, error: contractError } = await supabase
+                .from('contracts')
+                .select('contract_text')
+                .eq('deal_id', dealId)
+                .maybeSingle()
+
+            if (contractError) {
+                console.error('CONTRACT LOAD ERROR:', JSON.stringify(contractError, null, 2))
+            } else if (contractRow?.contract_text) {
+                setContractContent(contractRow.contract_text)
+                setExtractedContractText(contractRow.contract_text)
+                setContractSource('saved')
+                return
+            }
+
             const { data } = await supabase
                 .from('deals')
                 .select(`
@@ -54,18 +100,48 @@ export default function MakeContract() {
                 .eq('id', dealId)
                 .single()
 
+            const deal = data as DealContractData | null
+
             const buyer =
-                data?.buyer_org?.name ||
-                data?.buyer_user?.full_name ||
+                deal?.buyer_org?.name ||
+                deal?.buyer_user?.full_name ||
                 'Buyer'
 
             const supplier =
-                data?.supplier_org?.name ||
-                data?.supplier_user?.full_name ||
+                deal?.supplier_org?.name ||
+                deal?.supplier_user?.full_name ||
                 'Supplier'
 
             setBuyerName(buyer)
             setSupplierName(supplier)
+
+            if (session?.user.id && deal?.buyer_user_id === session.user.id) {
+                setCurrentRole('buyer')
+            } else {
+                setCurrentRole('supplier')
+            }
+
+            if (deal?.contract_text) {
+                setContractContent(deal.contract_text)
+                setExtractedContractText(deal.contract_text)
+                setContractSource('saved')
+                return
+            }
+
+            const { data: contractEvent } = await supabase
+                .from('deal_events')
+                .select('content')
+                .eq('deal_id', dealId)
+                .eq('type', 'contract')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+            if (contractEvent?.content) {
+                setContractContent(contractEvent.content)
+                setExtractedContractText(contractEvent.content)
+                setContractSource('saved')
+            }
         }
 
         loadDeal()
@@ -78,9 +154,11 @@ export default function MakeContract() {
 
         if (file.type === 'application/pdf') {
             setContractContent('PDF uploaded')
+            setExtractedContractText('')
         } else {
             const text = await file.text()
             setContractContent(text)
+            setExtractedContractText(text)
         }
     }
 
@@ -108,6 +186,7 @@ export default function MakeContract() {
             if (!res.ok) throw new Error(data.error)
 
             setContractContent(data.contract)
+            setExtractedContractText(data.contract)
 
         } catch (err) {
             console.error(err)
@@ -125,6 +204,7 @@ export default function MakeContract() {
         try {
             const formData = new FormData()
             formData.append('file', uploadedFile)
+            formData.append('dealId', String(dealId))
 
             const res = await fetch('/api/ai/analyze-contract', {
                 method: 'POST',
@@ -133,6 +213,7 @@ export default function MakeContract() {
 
             const data = await res.json()
             setAnalysisResults(data)
+            setExtractedContractText(data.contractText || '')
 
         } catch (err) {
             console.error(err)
@@ -141,9 +222,89 @@ export default function MakeContract() {
         }
     }
 
+    const handleProceed = async () => {
+        if (!dealId || !contractContent) return
+
+        setIsSaving(true)
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession()
+            let contractTextToSave = extractedContractText || contractContent
+
+            if (
+                contractSource === 'upload' &&
+                uploadedFile &&
+                !extractedContractText.trim()
+            ) {
+                const formData = new FormData()
+                formData.append('file', uploadedFile)
+                formData.append('dealId', String(dealId))
+
+                const res = await fetch('/api/ai/analyze-contract', {
+                    method: 'POST',
+                    body: formData
+                })
+
+                const data = await res.json()
+
+                if (!res.ok) {
+                    throw new Error(data.error || 'Failed to process contract')
+                }
+
+                setAnalysisResults(data)
+                contractTextToSave = data.contractText || ''
+                setExtractedContractText(contractTextToSave)
+            }
+
+            if (!contractTextToSave.trim()) {
+                throw new Error('No readable contract text available to save.')
+            }
+
+            const { data: savedContract, error } = await supabase
+                .from('contracts')
+                .upsert(
+                    {
+                        deal_id: dealId,
+                        contract_text: contractTextToSave
+                    },
+                    { onConflict: 'deal_id' }
+                )
+
+            if (error) {
+                const { error: eventError } = await supabase
+                    .from('deal_events')
+                    .insert({
+                        deal_id: dealId,
+                        user_id: session?.user.id,
+                        type: 'contract',
+                        content: contractTextToSave,
+                        role: currentRole
+                    })
+
+                if (eventError) {
+                    throw new Error(
+                        `${error.message}. Fallback save failed: ${eventError.message}`
+                    )
+                }
+            }
+
+            router.push(`/dashboard/active-deals/${dealId}/view-contract`)
+        } catch (err) {
+            console.error(err)
+            alert(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to save contract'
+            )
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
     const resetAll = () => {
         setUploadedFile(null)
         setContractContent('')
+        setExtractedContractText('')
         setAnalysisResults(null)
         setContractSource(null)
     }
@@ -227,7 +388,7 @@ export default function MakeContract() {
                                 </p>
 
                                 <div className="space-y-3">
-                                    {analysisResults.risks?.map((risk: any, i: number) => (
+                                    {analysisResults.risks?.map((risk, i) => (
                                         <div key={i} className="p-3 border rounded bg-gray-50">
                                             <div className="font-semibold">
                                                 {risk.category} ({risk.riskLevel})
@@ -248,13 +409,11 @@ export default function MakeContract() {
             </div>
 
             <button
-                onClick={() =>
-                    router.push(`/dashboard/active-deals/${dealId}/view-contract`)
-                }
+                onClick={handleProceed}
                 className="mt-6 bg-amber-400 px-6 py-2 rounded"
-                disabled={!contractContent}
+                disabled={!contractContent || isSaving}
             >
-                Proceed
+                {isSaving ? 'Saving...' : 'Proceed'}
             </button>
 
         </div>
