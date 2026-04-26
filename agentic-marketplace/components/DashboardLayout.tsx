@@ -10,6 +10,8 @@ export default function DashboardLayout({ children }: any) {
   const router = useRouter()
   const pathname = usePathname()
 
+  const isDashboardHome = pathname === '/dashboard'
+
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [profile, setProfile] = useState<any>(null)
   const [organization, setOrganization] = useState<any>(null)
@@ -24,7 +26,7 @@ export default function DashboardLayout({ children }: any) {
         return
       }
 
-      // 🔹 GET PROFILE
+      // GET PROFILE
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -63,7 +65,7 @@ export default function DashboardLayout({ children }: any) {
           ownerId = membership.organization_id
           ownerType = 'organization'
         } else {
-          console.log('❌ NO MEMBERSHIP FOUND FOR USER')
+          console.log(' NO MEMBERSHIP FOUND FOR USER')
         }
       }
 
@@ -114,7 +116,11 @@ export default function DashboardLayout({ children }: any) {
       : organization?.name
 
   return (
-    <div className="min-h-screen bg-yellow-50">
+    <div
+      className={`${
+        isDashboardHome ? 'h-screen overflow-hidden' : 'min-h-screen'
+      } bg-yellow-50 flex flex-col`}
+    >
 
       {/* HEADER */}
       <Header
@@ -147,52 +153,62 @@ export default function DashboardLayout({ children }: any) {
         </div>
       )}
 
-      {/* DASHBOARD CARDS */}
-      {pathname === '/dashboard' && profile && (
-        <div className="flex justify-center gap-12 mt-10">
-          {[
-            {
-              label: 'Trust Score',
-              value: `⭐ ${
-                profile.account_type === 'individual'
-                  ? profile.trust_score
-                  : organization?.trust_score ?? 0
-              }`
-            },
-            {
-              label: 'Deals Completed',
-              value:
-                profile.account_type === 'individual'
-                  ? profile.deals_completed
-                  : organization?.deals_completed ?? 0
-            },
-            {
-              label: 'Disputes',
-              value:
-                profile.account_type === 'individual'
-                  ? profile.disputes_count
-                  : organization?.disputes_count ?? 0
-            }
-          ].map((item, i) => (
-            <div
-              key={i}
-              className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center"
-            >
-              <span className="text-lg font-medium text-gray-700">
-                {item.label}
-              </span>
-              <span className="text-3xl font-bold text-gray-800 mt-2">
-                {item.value}
-              </span>
+      {isDashboardHome ? (
+        <div className="w-full max-w-4xl mx-auto px-8 flex-1 min-h-0 flex flex-col overflow-hidden">
+
+          {/* DASHBOARD CARDS */}
+          {profile && (
+            <div className="flex justify-center gap-12 mt-10">
+              {[
+                {
+                  label: 'Trust Score',
+                  value: `⭐ ${
+                    profile.account_type === 'individual'
+                      ? profile.trust_score
+                      : organization?.trust_score ?? 0
+                  }`
+                },
+                {
+                  label: 'Deals Completed',
+                  value:
+                    profile.account_type === 'individual'
+                      ? profile.deals_completed
+                      : organization?.deals_completed ?? 0
+                },
+                {
+                  label: 'Disputes',
+                  value:
+                    profile.account_type === 'individual'
+                      ? profile.disputes_count
+                      : organization?.disputes_count ?? 0
+                }
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className="bg-amber-100 rounded-3xl shadow-md w-64 h-40 flex flex-col items-center justify-center"
+                >
+                  <span className="text-lg font-medium text-gray-700">
+                    {item.label}
+                  </span>
+                  <span className="text-3xl font-bold text-gray-800 mt-2">
+                    {item.value}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* PAGE CONTENT */}
+          <div className="pt-8 flex-1 min-h-0 overflow-hidden h-full">
+            {children}
+          </div>
+
+        </div>
+      ) : (
+        <div className="p-8 flex-1">
+          {children}
         </div>
       )}
-
-      {/* PAGE CONTENT */}
-      <div className="p-8">
-        {children}
-      </div>
 
     </div>
   )
