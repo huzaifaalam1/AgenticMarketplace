@@ -231,29 +231,38 @@ export default function MakeContract() {
             const { data: { session } } = await supabase.auth.getSession()
             let contractTextToSave = extractedContractText || contractContent
 
+            // Extract text from uploaded file if not already done
             if (
                 contractSource === 'upload' &&
                 uploadedFile &&
                 !extractedContractText.trim()
             ) {
-                const formData = new FormData()
-                formData.append('file', uploadedFile)
-                formData.append('dealId', String(dealId))
+                if (uploadedFile.type === 'application/pdf') {
+                    // For PDFs, call the API to extract text
+                    const formData = new FormData()
+                    formData.append('file', uploadedFile)
+                    formData.append('dealId', String(dealId))
 
-                const res = await fetch('/api/ai/analyze-contract', {
-                    method: 'POST',
-                    body: formData
-                })
+                    const res = await fetch('/api/ai/analyze-contract', {
+                        method: 'POST',
+                        body: formData
+                    })
 
-                const data = await res.json()
+                    const data = await res.json()
 
-                if (!res.ok) {
-                    throw new Error(data.error || 'Failed to process contract')
+                    if (!res.ok) {
+                        throw new Error(data.error || 'Failed to process contract')
+                    }
+
+                    setAnalysisResults(data)
+                    contractTextToSave = data.contractText || ''
+                    setExtractedContractText(contractTextToSave)
+                } else {
+                    // For text files, read directly
+                    const text = await uploadedFile.text()
+                    contractTextToSave = text
+                    setExtractedContractText(text)
                 }
-
-                setAnalysisResults(data)
-                contractTextToSave = data.contractText || ''
-                setExtractedContractText(contractTextToSave)
             }
 
             if (!contractTextToSave.trim()) {
