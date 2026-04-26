@@ -251,6 +251,13 @@ export default function ViewContract() {
                         <p className="text-sm text-green-900">
                             Buyer accepted your contract. Move to the next page to proceed.
                         </p>
+
+                        <button
+                            onClick={() => router.push(`/dashboard/active-deals/${dealId}/process`)}
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg"
+                            >
+                            Go to Process
+                        </button>
                     </div>
                 )}
 
@@ -334,22 +341,24 @@ export default function ViewContract() {
                 )}
             </div>
 
-            <div className="mt-6 flex gap-4">
-                <button
+            {currentRole === 'buyer' && (
+                <div className="mt-6 flex gap-4">
+                    <button
                     onClick={handleSendBackToMakeContract}
                     className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600"
-                >
+                    >
                     Decline
-                </button>
+                    </button>
 
-                <button
+                    <button
                     onClick={handleProceedToProcess}
                     disabled={!canAnalyzeAndApprove}
                     className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600"
-                >
+                    >
                     Accept
-                </button>
-            </div>
+                    </button>
+                </div>
+            )}
 
         </div>
         </DashboardLayout>
